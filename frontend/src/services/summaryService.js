@@ -7,8 +7,8 @@ const summaryService = {
    * Ask the backend to generate (or regenerate) an AI summary for a meeting.
    * Requires Ollama to be running and a transcript to exist.
    */
-  generateSummary: async (meetingId, model = DEFAULT_MODEL) => {
-    const response = await api.post(`/meetings/${meetingId}/summarize`, { model });
+  generateSummary: async (meetingId, model = DEFAULT_MODEL, template = "general") => {
+    const response = await api.post(`/meetings/${meetingId}/summarize`, { model, template });
     return response.data; // { success, message, summary }
   },
 
@@ -19,6 +19,22 @@ const summaryService = {
   getMeetingSummary: async (meetingId) => {
     const response = await api.get(`/meetings/${meetingId}/summary`);
     return response.data;
+  },
+
+  /**
+   * Generate a professional post-meeting follow-up email.
+   */
+  generateFollowUpEmail: async (meetingId, model = DEFAULT_MODEL) => {
+    const response = await api.post(`/meetings/${meetingId}/follow-up-email`, { model });
+    return response.data; // { success, subject, email_body }
+  },
+
+  /**
+   * Export structured meeting notes and transcript as Markdown / text.
+   */
+  exportMeetingNotes: async (meetingId) => {
+    const response = await api.get(`/meetings/${meetingId}/export`);
+    return response.data; // { success, meeting, markdown }
   },
 
   /**

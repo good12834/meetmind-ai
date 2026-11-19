@@ -267,6 +267,22 @@ def auto_sync_schema():
             if "meeting_summaries" not in tables:
                 db.create_all()
                 app.logger.info("Auto-sync: created meeting_summaries table.")
+            else:
+                # Add new columns to meeting_summaries if missing
+                sum_cols = [c["name"] for c in inspector.get_columns("meeting_summaries")]
+                new_sum_cols = {
+                    "problems_identified": "JSON",
+                    "important_questions": "JSON",
+                    "template": "VARCHAR(100)",
+                }
+                for col, col_def in new_sum_cols.items():
+                    if col not in sum_cols:
+                        try:
+                            db.session.execute(text(f"ALTER TABLE meeting_summaries ADD COLUMN {col} {col_def}"))
+                            db.session.commit()
+                            app.logger.info(f"Auto-sync: added column '{col}' to meeting_summaries.")
+                        except Exception:
+                            db.session.rollback()
 
             if "action_items" not in tables:
                 db.create_all()

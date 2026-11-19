@@ -1,3 +1,5 @@
+import { LayoutGrid, List } from "lucide-react";
+
 export default function SearchFilterBar({
   query, onQueryChange, onSearch,
   status, onStatusChange, statusOptions = ["all", "scheduled", "live", "recorded", "transcribed", "summarized"],
@@ -32,8 +34,12 @@ export default function SearchFilterBar({
       )}
       {onViewChange && (
         <div style={{ display: "flex", gap: 4 }}>
-          <button type="button" className={`btn btn-secondary ${view === "grid" ? "active" : ""}`} onClick={() => onViewChange("grid")} aria-label="Grid view">▦</button>
-          <button type="button" className={`btn btn-secondary ${view === "list" ? "active" : ""}`} onClick={() => onViewChange("list")} aria-label="List view">☰</button>
+          <button type="button" className={`btn btn-secondary ${view === "grid" ? "active" : ""}`} onClick={() => onViewChange("grid")} aria-label="Grid view">
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button type="button" className={`btn btn-secondary ${view === "list" ? "active" : ""}`} onClick={() => onViewChange("list")} aria-label="List view">
+            <List className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

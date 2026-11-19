@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { Calendar, CheckCircle2, FileText, Trash2, User } from "lucide-react";
 import api from "../services/api";
 import {
   getActionItems,
@@ -195,7 +196,9 @@ export default function ActionItemsPage() {
           </div>
         ) : displayed.length === 0 ? (
           <div className="bg-gray-800 rounded-xl p-12 text-center">
-            <p className="text-4xl mb-3">✅</p>
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mx-auto mb-3">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
             <h3 className="text-xl font-bold text-white mb-2">No action items found</h3>
             <p className="text-gray-400 text-sm">
               {search ? "Try adjusting your search." : "Add a task to get started."}
@@ -213,22 +216,22 @@ export default function ActionItemsPage() {
                   <p className="text-white font-medium leading-snug">{item.task}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {item.assignee && (
-                      <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">
-                        👤 {item.assignee}
+                      <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <User className="w-3 h-3 text-purple-400" /> {item.assignee}
                       </span>
                     )}
                     {item.due_date && (
-                      <span className="text-xs text-gray-400">
-                        📅 {new Date(item.due_date).toLocaleDateString()}
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-purple-400" /> {new Date(item.due_date).toLocaleDateString()}
                       </span>
                     )}
                     <PriorityBadge priority={item.priority} />
                     {item.meeting_id && (
                       <Link
                         to={`/meetings/${item.meeting_id}`}
-                        className="text-xs text-blue-400 hover:underline"
+                        className="text-xs text-blue-400 hover:underline flex items-center gap-1"
                       >
-                        📋 Meeting
+                        <FileText className="w-3 h-3" /> Meeting
                       </Link>
                     )}
                   </div>
@@ -249,10 +252,10 @@ export default function ActionItemsPage() {
                   </select>
                   <button
                     onClick={() => handleDelete(item.id)}
-                    className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-red-500/10 transition text-sm"
+                    className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-red-500/10 transition text-sm flex items-center justify-center"
                     title="Delete"
                   >
-                    🗑
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

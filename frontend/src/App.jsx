@@ -12,6 +12,7 @@ import Analytics from "./pages/Analytics";
 import AIChat from "./pages/AIChat";
 import Team from "./pages/Team";
 import Notifications from "./pages/Notifications";
+import LiveTranscription from "./pages/LiveTranscription";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -130,6 +131,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Notifications />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/live-transcription"
+          element={
+            <ProtectedRoute>
+              <LiveTranscription />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/meetings/:id/live-transcription"
+          element={
+            <ProtectedRoute>
+              <LiveTranscription />
             </ProtectedRoute>
           }
         />

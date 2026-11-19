@@ -27,6 +27,7 @@ from services.ollama_service import (
     OllamaUnavailableError,
     check_ollama_health,
     generate_summary,
+    generate_followup_email,
 )
 
 summaries_bp = Blueprint("summaries", __name__)
@@ -95,6 +96,7 @@ def summarize_meeting(meeting_id):
 
     body = request.get_json(silent=True) or {}
     requested_model = (body.get("model") or "").strip() or None
+    template = (body.get("template") or "").strip() or None
 
     summary = (
         MeetingSummary.query
@@ -134,6 +136,7 @@ def summarize_meeting(meeting_id):
                 meeting.meeting_date.strftime("%Y-%m-%d %H:%M")
                 if meeting.meeting_date else None
             ),
+            template=template,
         )
     except (OllamaUnavailableError, OllamaResponseError, ValueError) as exc:
         summary.status = "failed"
@@ -150,6 +153,9 @@ def summarize_meeting(meeting_id):
         summary.summary_text = result["summary_text"]
         summary.key_points = result["key_points"]
         summary.decisions = result["decisions"]
+        summary.problems_identified = result.get("problems_identified", [])
+        summary.important_questions = result.get("important_questions", [])
+        summary.template = template
         summary.model_used = result.get("model_used") or summary.model_used
         summary.status = "completed"
         summary.error_message = None
@@ -166,6 +172,7 @@ def summarize_meeting(meeting_id):
                 task=item["task"],
                 assignee=item["assignee"],
                 due_date=item["due_date"],
+                priority=item.get("priority", "medium"),
                 status=_preserved_status(item["task"], preserved_status, previous_tasks),
                 position=position,
             ))
@@ -239,6 +246,143 @@ def delete_summary(summary_id):
     except Exception as exc:
         db.session.rollback()
         return _error(str(exc), 500)
+
+
+# ---------------------------------------------------------------------------
+# Follow-up Email & Meeting Export
+# ---------------------------------------------------------------------------
+
+@summaries_bp.route("/meetings/<int:meeting_id>/follow-up-email", methods=["POST"])
+@jwt_required()
+def meeting_follow_up_email(meeting_id):
+    current_user_id = int(get_jwt_identity())
+    meeting = Meeting.query.filter_by(id=meeting_id, user_id=current_user_id).first()
+    if not meeting:
+        return _error("Meeting not found", 404)
+
+    summary = (
+        MeetingSummary.query
+        .filter_by(meeting_id=meeting_id, user_id=current_user_id)
+        .order_by(MeetingSummary.created_at.desc())
+        .first()
+    )
+    if not summary:
+        return _error("Generate meeting notes first before creating a follow-up email.", 400)
+
+    body = request.get_json(silent=True) or {}
+    model = (body.get("model") or "").strip() or None
+
+    action_items_data = [item.to_dict() for item in summary.action_items]
+    email_text = generate_followup_email(
+        meeting_title=meeting.title,
+        summary_text=summary.summary_text or "",
+        key_points=summary.key_points or [],
+        decisions=summary.decisions or [],
+        action_items=action_items_data,
+        problems_identified=getattr(summary, "problems_identified", None) or [],
+        model=model,
+    )
+
+    subject = f"Follow-up & Action Items: {meeting.title}"
+    return jsonify({
+        "success": True,
+        "subject": subject,
+        "email_body": email_text,
+    }), 200
+
+
+@summaries_bp.route("/meetings/<int:meeting_id>/export", methods=["GET"])
+@jwt_required()
+def export_meeting_notes(meeting_id):
+    current_user_id = int(get_jwt_identity())
+    meeting = Meeting.query.filter_by(id=meeting_id, user_id=current_user_id).first()
+    if not meeting:
+        return _error("Meeting not found", 404)
+
+    summary = (
+        MeetingSummary.query
+        .filter_by(meeting_id=meeting_id, user_id=current_user_id)
+        .order_by(MeetingSummary.created_at.desc())
+        .first()
+    )
+    transcript = (
+        Transcript.query
+        .filter_by(meeting_id=meeting_id, user_id=current_user_id)
+        .order_by(Transcript.created_at.desc())
+        .first()
+    )
+
+    meeting_date_str = meeting.meeting_date.strftime("%Y-%m-%d %H:%M") if meeting.meeting_date else "No date specified"
+    overview = summary.summary_text if summary and summary.summary_text else "No summary recorded."
+    points = summary.key_points if summary and summary.key_points else []
+    decisions = summary.decisions if summary and summary.decisions else []
+    actions = [item.to_dict() for item in summary.action_items] if summary else []
+    problems = getattr(summary, "problems_identified", None) or []
+    questions = getattr(summary, "important_questions", None) or []
+
+    # Markdown format
+    md_lines = [
+        f"# {meeting.title}",
+        f"**Date:** {meeting_date_str} | **Status:** {meeting.status}",
+        "",
+        "## Executive Summary",
+        overview,
+        "",
+        "## Key Discussion Points",
+    ]
+    if points:
+        for p in points:
+            md_lines.append(f"- {p}")
+    else:
+        md_lines.append("*None recorded.*")
+
+    md_lines.append("")
+    md_lines.append("## Decisions Made")
+    if decisions:
+        for d in decisions:
+            md_lines.append(f"- ✓ {d}")
+    else:
+        md_lines.append("*No explicit decisions.*")
+
+    if problems:
+        md_lines.append("")
+        md_lines.append("## Problems & Risks Identified")
+        for prob in problems:
+            md_lines.append(f"- ⚠️ {prob}")
+
+    if questions:
+        md_lines.append("")
+        md_lines.append("## Open Questions")
+        for q in questions:
+            md_lines.append(f"- ❓ {q}")
+
+    md_lines.append("")
+    md_lines.append("## Action Items")
+    if actions:
+        for a in actions:
+            status_box = "[x]" if a.get("status") == "completed" else "[ ]"
+            md_lines.append(
+                f"- {status_box} **{a.get('task')}** — Assignee: @{a.get('assignee', 'Unassigned')} | Due: {a.get('due_date', 'TBD')} | Priority: {a.get('priority', 'medium')}"
+            )
+    else:
+        md_lines.append("*No action items assigned.*")
+
+    if transcript and transcript.full_text:
+        md_lines.append("")
+        md_lines.append("## Full Transcript")
+        md_lines.append(transcript.full_text)
+
+    markdown_content = "\n".join(md_lines)
+
+    return jsonify({
+        "success": True,
+        "meeting": {
+            "id": meeting.id,
+            "title": meeting.title,
+            "date": meeting_date_str,
+        },
+        "markdown": markdown_content,
+    }), 200
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar } from "lucide-react";
+import { Calendar, User } from "lucide-react";
 import summaryService from "../../services/summaryService";
 
 export default function ActionItemsList({ summary, onUpdate }) {
@@ -58,9 +58,9 @@ export default function ActionItemsList({ summary, onUpdate }) {
               />
               <div style={{ flex: 1 }}>
                 <div style={{ textDecoration: checked ? "line-through" : "none" }}>{item.task}</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <span>👤 {item.assignee || "Unassigned"}</span>
-                  <span><Calendar className="text-current" /> {item.due_date || "No due date"}</span>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><User size={13} /> {item.assignee || "Unassigned"}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Calendar size={13} /> {item.due_date || "No due date"}</span>
                 </div>
               </div>
             </div>

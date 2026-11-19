@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, CheckCircle2, FileText, Loader2, Mic, Send, Sparkles, Trash2 } from "lucide-react";
+import Navbar from "../components/Navbar";
 import { chatWithMeetings, getMeetingHistory } from "../services/aiChatService";
 
 function truncate(str, len = 120) {
@@ -90,27 +91,7 @@ export default function AIChatPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <nav className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-20">
-        <div className="flex items-center gap-8">
-          <Link to="/dashboard" className="text-2xl font-bold text-purple-400">
-            MeetMind AI
-          </Link>
-          <div className="hidden sm:flex items-center gap-4 text-sm font-medium">
-            <Link to="/dashboard" className="text-gray-400 hover:text-white transition">
-              Dashboard
-            </Link>
-            <Link to="/ai-chat" className="text-purple-400 border-b-2 border-purple-500 pb-1">
-              AI Chat
-            </Link>
-          </div>
-        </div>
-        <Link
-          to="/dashboard"
-          className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-        >
-          Back to Dashboard
-        </Link>
-      </nav>
+      <Navbar />
 
       <main className="max-w-6xl mx-auto p-6 sm:p-8 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

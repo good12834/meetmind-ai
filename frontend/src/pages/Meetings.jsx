@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
+  Calendar,
+  Check,
+  Clock,
+  Radio,
+  Sparkles,
+  Video,
+  X,
+} from "lucide-react";
 import Navbar from "../components/Navbar";
 import MeetingCard from "../components/meetings/MeetingCard";
 import SearchFilterBar from "../components/meetings/SearchFilterBar";
@@ -226,10 +236,10 @@ export default function Meetings() {
   );
 
   const statCards = [
-    { key: "all", label: "Total", icon: "📅", value: stats.total, filter: "all" },
-    { key: "week", label: "This week", icon: "🗓️", value: stats.thisWeek },
-    { key: "live", label: "Live now", icon: "🔴", value: stats.liveNow, filter: "live" },
-    { key: "ai", label: "Pending AI", icon: "✨", value: stats.pendingAI, filter: "transcribed" },
+    { key: "all", label: "Total", icon: Calendar, value: stats.total, filter: "all" },
+    { key: "week", label: "This week", icon: Clock, value: stats.thisWeek },
+    { key: "live", label: "Live now", icon: Radio, value: stats.liveNow, filter: "live" },
+    { key: "ai", label: "Pending AI", icon: Sparkles, value: stats.pendingAI, filter: "transcribed" },
   ];
 
   return (
@@ -245,13 +255,13 @@ export default function Meetings() {
           </div>
           <div className="header-actions">
             <button
-              className="btn btn-secondary"
+              className="btn btn-secondary flex items-center gap-1.5"
               onClick={() => {
                 openCreate();
                 setStartVideo(true);
               }}
             >
-              📹 Start video meeting
+              <Video className="w-4 h-4" /> Start video meeting
             </button>
             <button className="btn btn-primary" onClick={openCreate} title="Shortcut: N">
               + New Meeting
@@ -266,6 +276,7 @@ export default function Meetings() {
               ? true
               : s.key === "all" && statusFilter === "all" && !query;
             const Tag = clickable ? "button" : "div";
+            const Icon = s.icon;
             return (
               <Tag
                 key={s.key}
@@ -275,7 +286,7 @@ export default function Meetings() {
               >
                 <div className="stat-top">
                   <div className="section-label">{s.label}</div>
-                  <span className="stat-icon">{s.icon}</span>
+                  <span className="stat-icon"><Icon className="w-4 h-4 text-purple-400" /></span>
                 </div>
                 {loading ? <div className="stat-skeleton" /> : <div className="stat-value">{s.value}</div>}
               </Tag>
@@ -307,7 +318,10 @@ export default function Meetings() {
 
         {error && (
           <div className="card-surface error-banner" role="alert">
-            <span>⚠️ {error}</span>
+            <span className="flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              {error}
+            </span>
             <button type="button" className="btn btn-secondary" onClick={() => window.location.reload()}>
               Reload
             </button>
@@ -369,8 +383,8 @@ export default function Meetings() {
               <h3 id="meeting-modal-title" style={{ margin: 0 }}>
                 {editTarget ? "Edit Meeting" : "New Meeting"}
               </h3>
-              <button type="button" className="btn btn-secondary" onClick={closeModal} aria-label="Close">
-                ✕
+              <button type="button" className="btn btn-secondary flex items-center justify-center p-2" onClick={closeModal} aria-label="Close">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -451,7 +465,7 @@ export default function Meetings() {
                     checked={startVideo}
                     onChange={(e) => setStartVideo(e.target.checked)}
                   />
-                  <span className="video-option-icon">📹</span>
+                  <span className="video-option-icon"><Video className="w-4 h-4 text-purple-400" /></span>
                   <span>
                     <strong>Start video meeting now</strong>
                     <small>Creates the meeting as live and opens the video room.</small>
@@ -473,7 +487,7 @@ export default function Meetings() {
                     : editTarget
                     ? "Save"
                     : startVideo
-                    ? "📹 Start Video Meeting"
+                    ? "Start Video Meeting"
                     : "Create"}
                 </button>
               </div>
@@ -491,8 +505,9 @@ export default function Meetings() {
       />
 
       {toast && (
-        <div key={toast.id} className={`toast toast-${toast.type}`} role="status">
-          {toast.type === "success" ? "✓" : "⚠️"} {toast.text}
+        <div key={toast.id} className={`toast toast-${toast.type} flex items-center gap-1.5`} role="status">
+          {toast.type === "success" ? <Check className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-amber-400" />}
+          <span>{toast.text}</span>
         </div>
       )}
     </div>

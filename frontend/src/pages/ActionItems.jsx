@@ -3,14 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Calendar,
   Check,
+  CheckCircle2,
   ChevronRight,
   Clock,
   Filter,
   Loader2,
   Plus,
   Trash2,
+  User,
   X,
 } from "lucide-react";
+import Navbar from "../components/Navbar";
 import {
   getActionItems,
   createActionItem,
@@ -194,27 +197,7 @@ export default function ActionItemsPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <nav className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-20">
-        <div className="flex items-center gap-8">
-          <Link to="/dashboard" className="text-2xl font-bold text-purple-400">
-            MeetMind AI
-          </Link>
-          <div className="hidden sm:flex items-center gap-4 text-sm font-medium">
-            <Link to="/dashboard" className="text-gray-400 hover:text-white transition">
-              Dashboard
-            </Link>
-            <Link to="/action-items" className="text-purple-400 border-b-2 border-purple-500 pb-1">
-              Action Items
-            </Link>
-          </div>
-        </div>
-        <Link
-          to="/dashboard"
-          className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-        >
-          Back to Dashboard
-        </Link>
-      </nav>
+      <Navbar />
 
       <main className="max-w-6xl mx-auto p-6 sm:p-8 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -387,7 +370,9 @@ export default function ActionItemsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-12 text-center">
-              <div className="text-4xl mb-3">✅</div>
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mx-auto mb-3">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
               <h3 className="text-xl font-bold text-white">No action items</h3>
               <p className="text-gray-400 mt-1">
                 {filterStatus || filterMeeting || filterPriority
@@ -426,7 +411,10 @@ export default function ActionItemsPage() {
                           <span className={`text-xs ${PRIORITY_STYLE[item.priority] || "text-gray-400"} font-medium`}>
                             {PRIORITY_LABEL[item.priority] || item.priority}
                           </span>
-                          <span>👤 {item.assignee || "Unassigned"}</span>
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-purple-400" />
+                            {item.assignee || "Unassigned"}
+                          </span>
                           <span>
                             <Calendar className="w-3 h-3 inline" /> {formatDate(item.due_date)}
                           </span>

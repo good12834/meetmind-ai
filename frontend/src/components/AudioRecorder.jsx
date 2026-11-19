@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Mic, Hourglass } from "lucide-react";
+import { AlertTriangle, Cloud, Hourglass, Mic, Pause, Play, RotateCcw, Square } from "lucide-react";
 import recordingService from "../services/recordingService";
 
 function AudioRecorder({ meetingId, onUploadSuccess, onCancel }) {
@@ -238,16 +238,19 @@ function AudioRecorder({ meetingId, onUploadSuccess, onCancel }) {
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-left">
-            ⚠️ {errorMsg}
-            {errorMsg.includes("Microphone access was denied") && (
-              <button
-                onClick={openBrowserSettings}
-                className="ml-2 text-blue-400 text-xs underline hover:text-blue-300"
-              >
-                Open Settings
-              </button>
-            )}
+          <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-left flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              {errorMsg}
+              {errorMsg.includes("Microphone access was denied") && (
+                <button
+                  onClick={openBrowserSettings}
+                  className="ml-2 text-blue-400 text-xs underline hover:text-blue-300"
+                >
+                  Open Settings
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -325,15 +328,17 @@ function AudioRecorder({ meetingId, onUploadSuccess, onCancel }) {
             <>
               <button
                 onClick={pauseRecording}
-                className="bg-amber-600/80 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition"
+                className="bg-amber-600/80 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition inline-flex items-center gap-1.5"
               >
-                ⏸ Pause
+                <Pause className="w-4 h-4" />
+                <span>Pause</span>
               </button>
               <button
                 onClick={stopRecording}
                 className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 shadow-lg shadow-red-600/20 transition"
               >
-                ⏹ Stop & Review
+                <Square className="w-4 h-4 fill-current" />
+                <span>Stop & Review</span>
               </button>
             </>
           )}
@@ -342,15 +347,17 @@ function AudioRecorder({ meetingId, onUploadSuccess, onCancel }) {
             <>
               <button
                 onClick={resumeRecording}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition"
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition inline-flex items-center gap-1.5"
               >
-                ▶ Resume
+                <Play className="w-4 h-4 fill-current" />
+                <span>Resume</span>
               </button>
               <button
                 onClick={stopRecording}
-                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition"
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition inline-flex items-center gap-1.5"
               >
-                ⏹ Stop & Review
+                <Square className="w-4 h-4 fill-current" />
+                <span>Stop & Review</span>
               </button>
             </>
           )}
@@ -360,9 +367,10 @@ function AudioRecorder({ meetingId, onUploadSuccess, onCancel }) {
               <button
                 onClick={resetRecording}
                 disabled={isUploading}
-                className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-gray-300 px-4 py-2.5 rounded-xl font-medium text-sm transition"
+                className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-gray-300 px-4 py-2.5 rounded-xl font-medium text-sm transition inline-flex items-center gap-1.5"
               >
-                ↺ Discard & Record Again
+                <RotateCcw className="w-4 h-4" />
+                <span>Discard & Record Again</span>
               </button>
               <button
                 onClick={handleUpload}
@@ -376,7 +384,7 @@ function AudioRecorder({ meetingId, onUploadSuccess, onCancel }) {
                   </>
                 ) : (
                   <>
-                    <span>☁️</span>
+                    <Cloud className="w-4 h-4" />
                     <span>Save & Attach Recording</span>
                   </>
                 )}

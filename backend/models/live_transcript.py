@@ -14,6 +14,7 @@ class LiveTranscriptSegment(db.Model):
         nullable=False,
     )
     speaker = db.Column(db.String(50), default="Speaker", nullable=False)
+    speaker_id = db.Column(db.String(50), nullable=True)
     text = db.Column(db.Text, nullable=False)
     start_time = db.Column(db.Float, default=0.0)
     end_time = db.Column(db.Float, default=0.0)
@@ -26,6 +27,7 @@ class LiveTranscriptSegment(db.Model):
             "id": self.id,
             "session_id": self.session_id,
             "speaker": self.speaker,
+            "speaker_id": self.speaker_id,
             "text": self.text,
             "start_time": self.start_time,
             "end_time": self.end_time,

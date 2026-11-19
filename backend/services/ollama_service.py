@@ -45,6 +45,8 @@ SUMMARY_SCHEMA = {
         "summary_text": {"type": "string"},
         "key_points": {"type": "array", "items": {"type": "string"}},
         "decisions": {"type": "array", "items": {"type": "string"}},
+        "problems_identified": {"type": "array", "items": {"type": "string"}},
+        "important_questions": {"type": "array", "items": {"type": "string"}},
         "action_items": {
             "type": "array",
             "items": {
@@ -53,12 +55,13 @@ SUMMARY_SCHEMA = {
                     "task": {"type": "string"},
                     "assignee": {"type": "string"},
                     "due_date": {"type": "string"},
+                    "priority": {"type": "string"},
                 },
-                "required": ["task", "assignee", "due_date"],
+                "required": ["task", "assignee", "due_date", "priority"],
             },
         },
     },
-    "required": ["summary_text", "key_points", "decisions", "action_items"],
+    "required": ["summary_text", "key_points", "decisions", "problems_identified", "important_questions", "action_items"],
 }
 
 
@@ -194,20 +197,113 @@ USER QUESTION: {question}
     return (data.get("response") or "").strip()
 
 
+def generate_followup_email(
+    meeting_title: str,
+    summary_text: str,
+    key_points: list,
+    decisions: list,
+    action_items: list,
+    problems_identified: Optional[list] = None,
+    model: Optional[str] = None,
+) -> str:
+    """
+    Generate a professional post-meeting follow-up email.
+    """
+    try:
+        selected_model = resolve_model(model)
+        decisions_str = "\n".join(f"- {d}" for d in decisions) if decisions else "None recorded."
+        actions_str = "\n".join(
+            f"- {item.get('task', '')} (Assignee: {item.get('assignee', 'Unassigned')}, Due: {item.get('due_date', 'TBD')})"
+            for item in action_items
+        ) if action_items else "None assigned."
+        points_str = "\n".join(f"- {p}" for p in key_points) if key_points else "None."
+
+        prompt = f"""You are an executive assistant. Write a professional, concise post-meeting follow-up email for the meeting "{meeting_title}".
+
+MEETING DETAILS:
+Summary: {summary_text}
+Key Points:
+{points_str}
+
+Decisions Made:
+{decisions_str}
+
+Action Items:
+{actions_str}
+
+INSTRUCTIONS:
+- Include a clear, friendly greeting.
+- Provide a 2-sentence executive recap.
+- Bullet out Key Decisions and Next Steps / Action Items with owners and deadlines.
+- End with an encouraging closing and offer to address any questions.
+- Keep the tone polite, clear, and professional.
+"""
+        payload = {
+            "model": selected_model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": 0.3, "num_predict": 700},
+        }
+        resp = requests.post(
+            f"{Config.OLLAMA_BASE_URL}/api/generate",
+            json=payload,
+            timeout=(10, Config.OLLAMA_TIMEOUT),
+        )
+        if resp.status_code == 200:
+            text = (resp.json().get("response") or "").strip()
+            if text:
+                return text
+    except Exception as exc:
+        logger.warning("Could not call Ollama for follow-up email: %s; using template fallback", exc)
+
+    # Fallback clean template if Ollama is down
+    actions_bullets = "\n".join(
+        f"  • {item.get('task')} — @{item.get('assignee', 'Unassigned')} (Due: {item.get('due_date', 'TBD')})"
+        for item in action_items
+    ) or "  • No action items recorded."
+
+    decisions_bullets = "\n".join(f"  • {d}" for d in decisions) or "  • No explicit decisions."
+    points_bullets = "\n".join(f"  • {p}" for p in key_points) or "  • General discussions."
+
+    return f"""Hi team,
+
+Thank you for your time during our meeting on "{meeting_title}". Here is a quick summary of what was discussed, key decisions made, and our agreed next steps:
+
+📌 Executive Summary:
+{summary_text or "Discussions were held regarding current project milestones and upcoming deliverables."}
+
+💡 Key Discussion Highlights:
+{points_bullets}
+
+⚖️ Key Decisions:
+{decisions_bullets}
+
+✅ Action Items & Owners:
+{actions_bullets}
+
+Please review your respective tasks and reach out if anything needs clarification.
+
+Best regards,
+MeetMind AI Team"""
+
+
 def generate_summary(
     transcript_text: str,
     model: Optional[str] = None,
     meeting_title: Optional[str] = None,
     meeting_date: Optional[str] = None,
+    template: Optional[str] = None,
 ) -> dict:
     """
     Send the transcript to Ollama and return:
     {
-        "summary_text": str,
-        "key_points":   list[str],
-        "decisions":    list[str],
-        "action_items": list[{"task", "assignee", "due_date"}],
-        "model_used":   str,
+        "summary_text":          str,
+        "key_points":            list[str],
+        "decisions":             list[str],
+        "problems_identified":   list[str],
+        "important_questions":   list[str],
+        "action_items":          list[{"task", "assignee", "due_date", "priority"}],
+        "model_used":            str,
     }
     Raises OllamaError subclasses on failure.
     """
@@ -215,7 +311,7 @@ def generate_summary(
         raise ValueError("Transcript text is empty — cannot generate a summary.")
 
     selected_model = resolve_model(model)
-    prompt = _build_prompt(transcript_text, meeting_title, meeting_date)
+    prompt = _build_prompt(transcript_text, meeting_title, meeting_date, template)
 
     last_error = None
     for attempt in (1, 2):
@@ -340,6 +436,7 @@ def _build_prompt(
     transcript_text: str,
     meeting_title: Optional[str] = None,
     meeting_date: Optional[str] = None,
+    template: Optional[str] = None,
 ) -> str:
     transcript_text = _fit_transcript(transcript_text)
 
@@ -348,6 +445,8 @@ def _build_prompt(
         context_lines.append(f"Meeting title: {meeting_title}")
     if meeting_date:
         context_lines.append(f"Meeting date: {meeting_date}")
+    if template:
+        context_lines.append(f"Meeting type/template: {template}")
     context = ("\n".join(context_lines) + "\n\n") if context_lines else ""
 
     return f"""You are an expert meeting analyst. Read the meeting transcript and produce structured meeting notes.
@@ -357,10 +456,13 @@ def _build_prompt(
 - "summary_text": a 3-5 sentence overview of what the meeting was about and what was accomplished.
 - "key_points": 3-7 one-sentence bullets covering the important topics discussed.
 - "decisions": every agreement or conclusion the group actually reached. Statements such as "let's go with", "we'll use", "approved", "we agreed" or an agreed launch date are decisions, including vendor/tool choices, budget approvals and agreed dates. Empty array if none were reached.
+- "problems_identified": any blockers, risks, concerns, issues, or unresolved conflicts explicitly mentioned. Empty array if none.
+- "important_questions": any open questions raised during the meeting that were NOT answered or resolved. Empty array if none.
 - "action_items": only tasks that the transcript states someone will do or must do. Do not add generic next steps.
   - "task": a short imperative description of the stated task, without the deadline.
   - "assignee": the person who accepted or was assigned the task, otherwise "Unassigned".
   - "due_date": copy the deadline wording from the transcript exactly (for example "next Friday" or "November 18th"), otherwise "Not specified". Never convert a relative date into a calendar date.
+  - "priority": estimate urgency as one of "low", "medium", "high", "urgent" based on language used (e.g. "ASAP", "critical" = urgent/high).
 - Do not include small talk, greetings or logistics that carry no meaning.
 
 MEETING TRANSCRIPT:
@@ -417,6 +519,8 @@ def _parse_response(raw: str) -> dict:
         "summary_text": str(parsed.get("summary_text") or "").strip(),
         "key_points": _ensure_list(parsed.get("key_points")),
         "decisions": _ensure_list(parsed.get("decisions")),
+        "problems_identified": _ensure_list(parsed.get("problems_identified")),
+        "important_questions": _ensure_list(parsed.get("important_questions")),
         "action_items": _normalise_action_items(parsed.get("action_items")),
     }
 
@@ -443,6 +547,7 @@ def _normalise_action_items(items) -> list:
                 "task": task,
                 "assignee": str(item.get("assignee") or "").strip() or "Unassigned",
                 "due_date": str(item.get("due_date") or "").strip() or "Not specified",
+                "priority": str(item.get("priority") or "medium").strip().lower() or "medium",
             })
         elif isinstance(item, str) and item.strip():
             result.append({

@@ -1,5 +1,31 @@
 import { useEffect, useState } from "react";
-import { Hourglass, Sparkles, Clipboard, Calendar, Check } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Bot,
+  Brain,
+  Briefcase,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Clipboard,
+  ClipboardList,
+  Compass,
+  Download,
+  HelpCircle,
+  Hourglass,
+  Lightbulb,
+  Mail,
+  Mic,
+  Rocket,
+  RotateCcw,
+  Scale,
+  Sparkles,
+  User,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import summaryService, { DEFAULT_MODEL } from "../services/summaryService";
 
 const STATUS_LABELS = {
@@ -7,6 +33,15 @@ const STATUS_LABELS = {
   in_progress: "In progress",
   completed: "Completed",
 };
+
+const SUMMARY_TEMPLATES = [
+  { id: "general", label: "General Meeting", icon: ClipboardList },
+  { id: "standup", label: "Daily Standup", icon: Zap },
+  { id: "sprint_review", label: "Sprint / Product Review", icon: Rocket },
+  { id: "client_discovery", label: "Client Discovery / Sales", icon: Briefcase },
+  { id: "retrospective", label: "Team Retrospective", icon: RotateCcw },
+  { id: "one_on_one", label: "1-on-1 Sync", icon: Users },
+];
 
 function formatDate(isoString) {
   if (!isoString) return "—";
@@ -45,12 +80,24 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
     error: "",
   });
   const [model, setModel] = useState(DEFAULT_MODEL);
+  const [template, setTemplate] = useState("general");
   const [generating, setGenerating] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [itemError, setItemError] = useState("");
   const [copied, setCopied] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState(null);
+
+  // Follow-up email modal state
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailData, setEmailData] = useState({ subject: "", email_body: "" });
+  const [emailCopied, setEmailCopied] = useState(false);
+
+  // Export modal state
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportContent, setExportContent] = useState("");
 
   const localModels = (health.models || []).filter((m) => !m.is_cloud);
 
@@ -74,6 +121,9 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
       if (cancelled) return;
 
       setSummary(summaryData.summary || null);
+      if (summaryData.summary?.template) {
+        setTemplate(summaryData.summary.template);
+      }
       setHealth(healthData);
 
       const installed = (healthData.models || [])
@@ -122,7 +172,7 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
     setItemError("");
 
     try {
-      const data = await summaryService.generateSummary(meetingId, model);
+      const data = await summaryService.generateSummary(meetingId, model, template);
       setSummary(data.summary);
     } catch (err) {
       const data = err.response?.data;
@@ -198,70 +248,150 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
       "DECISIONS",
       ...(summary.decisions || []).map((decision) => `- ${decision}`),
       "",
-      "ACTION ITEMS",
-      ...(summary.action_items || []).map(
-        (item) =>
-          `- [${item.status === "completed" ? "x" : " "}] ${item.task} — ${item.assignee} (due: ${item.due_date})`
-      ),
     ];
+
+    if ((summary.problems_identified || []).length > 0) {
+      lines.push("PROBLEMS & RISKS IDENTIFIED");
+      summary.problems_identified.forEach((p) => lines.push(`- [Risk] ${p}`));
+      lines.push("");
+    }
+
+    if ((summary.important_questions || []).length > 0) {
+      lines.push("OPEN QUESTIONS");
+      summary.important_questions.forEach((q) => lines.push(`- [Question] ${q}`));
+      lines.push("");
+    }
+
+    lines.push("ACTION ITEMS");
+    if ((summary.action_items || []).length === 0) {
+      lines.push("No action items assigned.");
+    } else {
+      summary.action_items.forEach((item) => {
+        lines.push(
+          `- [${item.status === "completed" ? "x" : " "}] ${item.task} (Owner: ${item.assignee || "Unassigned"}, Due: ${item.due_date || "Not set"}, Priority: ${item.priority || "medium"})`
+        );
+      });
+    }
 
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setItemError("Could not copy to the clipboard.");
+      setError("Could not copy notes to clipboard.");
     }
+  };
+
+  const handleOpenFollowUpEmail = async () => {
+    setEmailModalOpen(true);
+    setEmailLoading(true);
+    try {
+      const res = await summaryService.generateFollowUpEmail(meetingId, model);
+      setEmailData({ subject: res.subject, email_body: res.email_body });
+    } catch (err) {
+      setEmailData({
+        subject: "Meeting Follow-up",
+        email_body: "Could not generate email draft automatically. Please ensure notes are generated.",
+      });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleOpenExport = async () => {
+    setExportModalOpen(true);
+    setExportLoading(true);
+    try {
+      const res = await summaryService.exportMeetingNotes(meetingId);
+      setExportContent(res.markdown || "");
+    } catch (err) {
+      setExportContent("Failed to export notes.");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const downloadFile = (content, filename, type = "text/markdown") => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   if (loading) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-gray-400">
-        Loading AI summary...
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 flex flex-col items-center justify-center gap-3 text-center">
+        <Hourglass className="animate-spin text-purple-400 w-8 h-8" />
+        <p className="text-sm text-gray-400">Loading AI meeting intelligence…</p>
       </div>
     );
   }
 
-  const actionItems = summary?.action_items || [];
-  const completedCount = actionItems.filter((item) => item.status === "completed").length;
-  const progress = actionItems.length
-    ? Math.round((completedCount / actionItems.length) * 100)
-    : 0;
   const isBusy = generating || summary?.status === "generating";
-  const hasContent =
-    summary && (summary.summary_text || (summary.key_points || []).length > 0);
+  const hasContent = Boolean(
+    summary &&
+      summary.status === "completed" &&
+      (summary.summary_text || (summary.key_points && summary.key_points.length > 0))
+  );
 
-  const statusPill = (() => {
-    if (health.running === null) {
-      return { label: "Checking Ollama…", className: "bg-slate-500/10 text-gray-400 border-slate-500/20" };
-    }
-    if (!health.running) {
-      return { label: "Ollama offline", className: "bg-red-500/10 text-red-400 border-red-500/20" };
-    }
-    if (localModels.length === 0) {
-      return { label: "No local model", className: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
-    }
-    return { label: "Ollama connected", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
-  })();
+  const actionItems = summary?.action_items || [];
+  const completedCount = actionItems.filter((i) => i.status === "completed").length;
+  const progress = actionItems.length ? (completedCount / actionItems.length) * 100 : 0;
+
+  const statusPill = isBusy
+    ? { label: "Thinking…", className: "bg-purple-500/10 text-purple-300 border-purple-500/30" }
+    : summary?.status === "completed"
+    ? { label: "Ready", className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" }
+    : summary?.status === "failed"
+    ? { label: "Failed", className: "bg-red-500/10 text-red-300 border-red-500/30" }
+    : { label: "Not generated", className: "bg-gray-500/10 text-gray-400 border-gray-500/30" };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header controls & template picker */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-8">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h3 className="text-2xl font-bold text-white">AI Meeting Notes</h3>
-              <span
-                className={`text-[11px] px-2.5 py-0.5 rounded-full border font-semibold ${statusPill.className}`}
-              >
-                ● {statusPill.label}
+              <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Brain className="w-6 h-6 text-purple-400" />
+                <span>Smart AI Meeting Notes</span>
+              </h3>
+              <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-semibold inline-flex items-center gap-1.5 ${statusPill.className}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                {statusPill.label}
               </span>
             </div>
             <p className="text-sm text-gray-400 mt-2 max-w-xl leading-relaxed">
-              Summary, key points, decisions and action items generated locally with
-              Ollama — your transcript never leaves this computer.
+              Auto-extracts executive summary, discussion topics, key decisions, blockers, open questions, and tasks.
             </p>
+
+            {/* Template selector pills */}
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider mr-1">
+                Template:
+              </span>
+              {SUMMARY_TEMPLATES.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setTemplate(id)}
+                  disabled={isBusy}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                    template === id
+                      ? "bg-purple-600/30 text-purple-300 border border-purple-500/50 shadow-sm"
+                      : "bg-slate-800/80 text-gray-400 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -277,8 +407,7 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
               )}
               {localModels.map((m) => (
                 <option key={m.name} value={m.name}>
-                  {m.name}
-                  {m.parameter_size ? ` · ${m.parameter_size}` : ""}
+                  {m.name} {m.parameter_size ? ` · ${m.parameter_size}` : ""}
                 </option>
               ))}
             </select>
@@ -290,13 +419,13 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
             >
               {isBusy ? (
                 <>
-                  <Hourglass className="animate-spin text-current" />
-                  <span>Generating…</span>
+                  <Hourglass className="animate-spin text-current w-4 h-4" />
+                  <span>Analyzing transcript…</span>
                 </>
               ) : (
                 <>
-                  <Sparkles />
-                  <span>{summary ? "Regenerate Summary" : "Generate Summary"}</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>{summary ? "Regenerate Notes" : "Generate Notes"}</span>
                 </>
               )}
             </button>
@@ -307,40 +436,19 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
       {/* Ollama not reachable */}
       {health.running === false && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 sm:p-6">
-          <h4 className="text-sm font-bold text-amber-300">Ollama is not reachable</h4>
+          <h4 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" /> Ollama is not reachable
+          </h4>
           <p className="text-sm text-amber-200/80 mt-1">{health.error}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-mono text-amber-100">
-            <code className="bg-slate-950/60 border border-amber-500/20 rounded px-2 py-1">
-              ollama serve
-            </code>
-            <code className="bg-slate-950/60 border border-amber-500/20 rounded px-2 py-1">
-              ollama pull {DEFAULT_MODEL}
-            </code>
+            <code className="bg-slate-950/60 border border-amber-500/20 rounded px-2 py-1">ollama serve</code>
+            <code className="bg-slate-950/60 border border-amber-500/20 rounded px-2 py-1">ollama pull {DEFAULT_MODEL}</code>
           </div>
           <button
             onClick={refreshHealth}
-            className="mt-3 text-xs font-semibold text-amber-300 hover:text-amber-200 underline"
+            className="mt-3 text-xs font-semibold text-amber-300 hover:text-amber-200 underline block"
           >
             Retry connection
-          </button>
-        </div>
-      )}
-
-      {/* Ollama running but empty */}
-      {health.running === true && localModels.length === 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 sm:p-6">
-          <h4 className="text-sm font-bold text-amber-300">No local model installed</h4>
-          <p className="text-sm text-amber-200/80 mt-1">
-            Download a model once, then generate summaries offline:
-          </p>
-          <code className="inline-block mt-3 text-[11px] font-mono bg-slate-950/60 border border-amber-500/20 rounded px-2 py-1 text-amber-100">
-            ollama pull {DEFAULT_MODEL}
-          </code>
-          <button
-            onClick={refreshHealth}
-            className="ml-3 text-xs font-semibold text-amber-300 hover:text-amber-200 underline"
-          >
-            Refresh models
           </button>
         </div>
       )}
@@ -348,77 +456,72 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
       {/* No transcript yet */}
       {!hasTranscript && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center">
-          <div className="text-4xl mb-3"><File className="text-4xl" /></div>
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mx-auto mb-4">
+            <Mic className="w-6 h-6" />
+          </div>
           <h4 className="text-lg font-bold text-white">Transcript required first</h4>
           <p className="text-gray-400 text-sm max-w-md mx-auto mt-2 mb-6">
-            MeetMind AI summarises the Whisper transcript. Transcribe this meeting&apos;s
-            audio and come back to generate the notes.
+            MeetMind AI analyzes your meeting transcript. Record or transcribe this meeting's audio first.
           </p>
           <button
             onClick={onGoToTranscript}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition inline-flex items-center gap-2"
           >
-            Go to Transcript →
+            <span>Go to Transcript</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Error from generation */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-5 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      {/* Generating */}
+      {/* Generating progress indicator */}
       {isBusy && (
-        <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-8 text-center">
-          <div className="text-4xl mb-3 animate-pulse">🧠</div>
-          <h4 className="text-lg font-bold text-white">
-            Reading the transcript and taking notes
-          </h4>
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-8 text-center animate-pulse">
+          <Hourglass className="animate-spin text-purple-400 w-8 h-8 mx-auto" />
+          <h4 className="text-base font-bold text-white mt-3">Synthesizing Meeting Notes…</h4>
           <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
-            {model} is running locally. This usually takes 20–90 seconds depending on
-            transcript length and your hardware.
+            {model} is analyzing the transcript for decisions, blockers, open questions, and action items.
           </p>
-          <p className="text-xs font-mono text-purple-300 mt-4">
-            {elapsed}s elapsed
-          </p>
-        </div>
-      )}
-
-      {/* Failed summary with no usable content */}
-      {!isBusy && summary?.status === "failed" && !hasContent && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
-          <div className="text-4xl mb-3">⚠️</div>
-          <h4 className="text-lg font-bold text-white">Summary generation failed</h4>
-          <p className="text-sm text-gray-400 mt-2 max-w-lg mx-auto">
-            {summary.error_message || "The AI model could not process this transcript."}
-          </p>
+          <p className="text-xs font-mono text-purple-300 mt-4">{elapsed}s elapsed</p>
         </div>
       )}
 
       {/* Content */}
       {!isBusy && hasContent && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400">
+          {/* Action buttons toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 bg-slate-900/60 border border-slate-800 p-3 rounded-xl">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-300 font-medium">
-                🤖 {summary.model_used}
+              <span className="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-purple-300 font-medium flex items-center gap-1.5">
+                <Bot className="w-3.5 h-3.5 text-purple-400" />
+                {summary.model_used}
               </span>
+              {summary.template && (
+                <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[11px] uppercase">
+                  {summary.template}
+                </span>
+              )}
               <span>Generated {formatDate(summary.updated_at || summary.created_at)}</span>
             </div>
+
             <div className="flex items-center gap-2">
               <button
-                onClick={handleCopy}
-                className="bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition"
+                onClick={handleOpenFollowUpEmail}
+                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
               >
-                {copied ? "✓ Copied" : (
-                  <>
-                    <Clipboard className="text-current" />
-                    Copy notes
-                  </>
-                )}
+                <Mail className="w-3.5 h-3.5" /> Email Draft
+              </button>
+              <button
+                onClick={handleOpenExport}
+                className="bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" /> Export
+              </button>
+              <button
+                onClick={handleCopy}
+                className="bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Clipboard className="w-3.5 h-3.5" />}
+                {copied ? "Copied" : "Copy Notes"}
               </button>
               <button
                 onClick={handleDelete}
@@ -432,19 +535,20 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
           {/* Overview */}
           <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8">
             <SectionHeading
-              icon="🧭"
-              title="Overview"
-              subtitle="What happened during this meeting"
+              icon={<Compass className="w-5 h-5 text-purple-400" />}
+              title="Executive Summary"
+              subtitle="High-level synthesis of what was discussed and achieved"
             />
             <p className="text-gray-200 leading-relaxed text-[15px] whitespace-pre-wrap">
               {summary.summary_text || "No overview was returned by the model."}
             </p>
           </section>
 
+          {/* Key Discussion Points & Decisions Made */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Key points */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <SectionHeading icon="💡" title="Key Discussion Points" />
+              <SectionHeading icon={<Lightbulb className="w-5 h-5 text-amber-400" />} title="Key Discussion Points" />
               {(summary.key_points || []).length === 0 ? (
                 <p className="text-sm text-gray-500">No key points were extracted.</p>
               ) : (
@@ -463,16 +567,14 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
 
             {/* Decisions */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <SectionHeading icon="⚖️" title="Decisions" />
+              <SectionHeading icon={<Scale className="w-5 h-5 text-emerald-400" />} title="Decisions Made" />
               {(summary.decisions || []).length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  No explicit decisions were recorded in this meeting.
-                </p>
+                <p className="text-sm text-gray-500">No explicit decisions were recorded in this meeting.</p>
               ) : (
                 <ul className="space-y-3">
                   {summary.decisions.map((decision, index) => (
                     <li key={`${index}-${decision}`} className="flex items-start gap-3">
-                      <span className="mt-0.5 text-emerald-400 text-sm">✓</span>
+                      <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
                       <p className="text-sm text-gray-200 leading-relaxed">{decision}</p>
                     </li>
                   ))}
@@ -481,13 +583,58 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
             </section>
           </div>
 
-          {/* Action items */}
+          {/* Problems Identified & Open Questions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Problems & Risks */}
+            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <SectionHeading
+                icon={<AlertTriangle className="w-5 h-5 text-amber-400" />}
+                title="Problems & Risks Identified"
+                subtitle="Blockers, technical debt, and unresolved friction"
+              />
+              {(summary.problems_identified || []).length === 0 ? (
+                <p className="text-sm text-gray-500">No blockers or risks were detected.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {summary.problems_identified.map((prob, index) => (
+                    <li key={`${index}-${prob}`} className="flex items-start gap-3 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                      <p className="text-sm text-gray-200 leading-relaxed">{prob}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* Important Questions */}
+            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <SectionHeading
+                icon={<HelpCircle className="w-5 h-5 text-sky-400" />}
+                title="Important Open Questions"
+                subtitle="Inquiries needing answers or follow-up"
+              />
+              {(summary.important_questions || []).length === 0 ? (
+                <p className="text-sm text-gray-500">No unresolved open questions were flagged.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {summary.important_questions.map((q, index) => (
+                    <li key={`${index}-${q}`} className="flex items-start gap-3 p-2.5 rounded-xl bg-sky-500/5 border border-sky-500/15">
+                      <HelpCircle className="w-4 h-4 text-sky-400 mt-0.5 shrink-0" />
+                      <p className="text-sm text-gray-200 leading-relaxed">{q}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          {/* Action Items */}
           <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
               <SectionHeading
-                icon={<Check className="text-current" />}
-                title="Action Items"
-                subtitle="Tick a task once it is done — status is saved to the database"
+                icon={<CheckCircle2 className="text-emerald-400 w-5 h-5" />}
+                title="Smart Action Tracker"
+                subtitle="Tasks extracted with assignees, deadlines, and urgency priorities"
               />
               {actionItems.length > 0 && (
                 <span className="text-xs font-semibold text-gray-400 whitespace-nowrap">
@@ -497,21 +644,26 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
             </div>
 
             {actionItems.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                No action items were found in this meeting.
-              </p>
+              <p className="text-sm text-gray-500">No action items were found in this meeting.</p>
             ) : (
               <>
                 <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden mb-5">
                   <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400 transition-all duration-500"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
 
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {actionItems.map((item) => {
                     const isCompleted = item.status === "completed";
+                    const priorityStyle = {
+                      urgent: "border-red-500/30 text-red-400 bg-red-500/10",
+                      high: "border-amber-500/30 text-amber-400 bg-amber-500/10",
+                      medium: "border-purple-500/30 text-purple-400 bg-purple-500/10",
+                      low: "border-gray-700 text-gray-400 bg-slate-800",
+                    }[(item.priority || "medium").toLowerCase()] || "border-gray-700 text-gray-400 bg-slate-800";
+
                     return (
                       <li
                         key={item.id}
@@ -524,34 +676,32 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
                         <button
                           onClick={() => handleToggleActionItem(item)}
                           disabled={updatingItemId === item.id}
-                          aria-label={
-                            isCompleted ? "Mark task as pending" : "Mark task as completed"
-                          }
                           className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold transition disabled:opacity-50 ${
                             isCompleted
                               ? "bg-emerald-500 border-emerald-500 text-slate-950"
                               : "border-slate-600 text-transparent hover:border-emerald-400"
                           }`}
                         >
-                          ✓
+                          <Check className="w-3 h-3" />
                         </button>
 
                         <div className="flex-1 min-w-0">
                           <p
                             className={`text-sm leading-relaxed ${
-                              isCompleted
-                                ? "text-gray-500 line-through"
-                                : "text-gray-100"
+                              isCompleted ? "text-gray-500 line-through" : "text-gray-100 font-medium"
                             }`}
                           >
                             {item.task}
                           </p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
-                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-gray-300">
-                              👤 {item.assignee}
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-gray-300 flex items-center gap-1">
+                              <User className="w-3 h-3 text-purple-400" /> {item.assignee || "Unassigned"}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-gray-300">
-                              <span><Calendar className="text-current" /> {item.due_date}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-gray-300 flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-purple-400" /> {item.due_date || "No deadline"}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full border font-semibold uppercase text-[10px] ${priorityStyle}`}>
+                              {item.priority || "medium"}
                             </span>
                             <span
                               className={`px-2 py-0.5 rounded-full border font-medium ${
@@ -571,13 +721,151 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
                   })}
                 </ul>
 
-                {itemError && (
-                  <p className="text-xs text-red-400 mt-3">{itemError}</p>
-                )}
+                {itemError && <p className="text-xs text-red-400 mt-3">{itemError}</p>}
               </>
             )}
           </section>
         </>
+      )}
+
+      {/* Follow-up Email Modal */}
+      {emailModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Mail className="w-5 h-5 text-purple-400" />
+                <h3 className="font-bold text-white text-lg">Follow-up Email Generator</h3>
+              </div>
+              <button
+                onClick={() => setEmailModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto space-y-4">
+              {emailLoading ? (
+                <div className="py-16 text-center space-y-3">
+                  <Hourglass className="w-8 h-8 animate-spin text-purple-400 mx-auto" />
+                  <p className="text-sm text-gray-400">Crafting follow-up email from meeting notes…</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                      Subject
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={emailData.subject}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                      Email Body
+                    </label>
+                    <textarea
+                      readOnly
+                      rows={14}
+                      value={emailData.email_body}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm text-gray-200 font-sans leading-relaxed resize-none focus:outline-none"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between gap-3">
+              <span className="text-xs text-gray-500">Ready to send to meeting participants</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`Subject: ${emailData.subject}\n\n${emailData.email_body}`);
+                    setEmailCopied(true);
+                    setTimeout(() => setEmailCopied(false), 2000);
+                  }}
+                  disabled={emailLoading}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  {emailCopied ? <Check className="w-4 h-4" /> : <Clipboard className="w-4 h-4" />}
+                  {emailCopied ? "Copied!" : "Copy Email"}
+                </button>
+                <button
+                  onClick={() => setEmailModalOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-gray-300 px-4 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Notes Modal */}
+      {exportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Download className="w-5 h-5 text-purple-400" />
+                <h3 className="font-bold text-white text-lg">Export Meeting Intelligence</h3>
+              </div>
+              <button
+                onClick={() => setExportModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto">
+              {exportLoading ? (
+                <div className="py-16 text-center space-y-3">
+                  <Hourglass className="w-8 h-8 animate-spin text-purple-400 mx-auto" />
+                  <p className="text-sm text-gray-400">Preparing export bundle…</p>
+                </div>
+              ) : (
+                <textarea
+                  readOnly
+                  rows={14}
+                  value={exportContent}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-gray-300 font-mono leading-relaxed resize-none focus:outline-none"
+                />
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between gap-3">
+              <span className="text-xs text-gray-500">Supports Markdown, Text, and Notion/Obsidian import</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => downloadFile(exportContent, `meeting-${meetingId}-notes.md`, "text/markdown")}
+                  disabled={exportLoading}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  <Download className="w-4 h-4" /> Download .md
+                </button>
+                <button
+                  onClick={() => downloadFile(exportContent, `meeting-${meetingId}-notes.txt`, "text/plain")}
+                  disabled={exportLoading}
+                  className="bg-slate-800 hover:bg-slate-700 text-gray-300 px-4 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  Download .txt
+                </button>
+                <button
+                  onClick={() => setExportModalOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-gray-300 px-4 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

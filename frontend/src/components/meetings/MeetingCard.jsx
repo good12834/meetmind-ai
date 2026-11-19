@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Calendar } from "lucide-react";
+import { Calendar, Clock, MoreHorizontal, Video } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import api from "../../services/api";
 
@@ -64,28 +64,28 @@ export default function MeetingCard({ meeting, onRename, onDelete, onDownload, o
             )}
           </div>
           <div className="meeting-card-meta" style={{ marginTop: 6 }}>
-            <span><Calendar className="text-current" /> {formatDate(meeting.meeting_date || meeting.created_at)}</span>
-            {meeting.duration ? <span>⏱ {meeting.duration}</span> : null}
+            <span><Calendar className="text-current w-3.5 h-3.5 inline mr-1" /> {formatDate(meeting.meeting_date || meeting.created_at)}</span>
+            {meeting.duration ? <span><Clock className="w-3.5 h-3.5 inline mr-1" /> {meeting.duration}</span> : null}
           </div>
         </div>
         <StatusBadge status={status} />
       </div>
       <div className="meeting-card-actions">
         {onJoinVideo ? (
-          <button className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); onJoinVideo(meeting); }}>
-            📹 Join
+          <button className="btn btn-secondary flex items-center gap-1" onClick={(e) => { e.stopPropagation(); onJoinVideo(meeting); }}>
+            <Video className="w-3.5 h-3.5" /> Join
           </button>
         ) : (
           <button
-            className="btn-video"
+            className="btn-video flex items-center gap-1"
             onClick={() => navigate(`/meetings/${meeting.id}/video`)}
           >
-            📹 Join
+            <Video className="w-3.5 h-3.5" /> Join
           </button>
         )}
         <Link to={`/meetings/${meeting.id}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: 13 }}>Open</Link>
         <div className="meeting-card-menu" ref={ref}>
-          <button className="btn btn-secondary" style={{ padding: "6px 10px" }} onClick={() => setOpen((v) => !v)} aria-label="More actions">⋯</button>
+          <button className="btn btn-secondary flex items-center justify-center" style={{ padding: "6px 10px" }} onClick={() => setOpen((v) => !v)} aria-label="More actions"><MoreHorizontal className="w-4 h-4" /></button>
           {open && (
             <div className="menu-popover">
               {onRename && <button className="menu-item" onClick={() => { setOpen(false); onRename(meeting); }}>Rename</button>}

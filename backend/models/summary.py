@@ -24,9 +24,12 @@ class MeetingSummary(db.Model):
     )
 
     # AI-generated content
-    summary_text = db.Column(db.Text, nullable=True)   # Executive summary paragraph
-    key_points = db.Column(db.JSON, nullable=True)     # List[str] – topics discussed
-    decisions = db.Column(db.JSON, nullable=True)      # List[str] – decisions made
+    summary_text = db.Column(db.Text, nullable=True)         # Executive summary paragraph
+    key_points = db.Column(db.JSON, nullable=True)           # List[str] – topics discussed
+    decisions = db.Column(db.JSON, nullable=True)            # List[str] – decisions made
+    problems_identified = db.Column(db.JSON, nullable=True)  # List[str] – blockers/risks
+    important_questions = db.Column(db.JSON, nullable=True)  # List[str] – open questions
+    template = db.Column(db.String(100), nullable=True)      # e.g. "standup", "retrospective"
 
     # Metadata
     model_used = db.Column(db.String(100), default="llama3.2:3b")
@@ -54,6 +57,9 @@ class MeetingSummary(db.Model):
             "summary_text": self.summary_text or "",
             "key_points": self.key_points or [],
             "decisions": self.decisions or [],
+            "problems_identified": self.problems_identified or [],
+            "important_questions": self.important_questions or [],
+            "template": self.template or "",
             "action_items": [item.to_dict() for item in self.action_items],
             "model_used": self.model_used or "llama3.2:3b",
             "status": self.status or "completed",

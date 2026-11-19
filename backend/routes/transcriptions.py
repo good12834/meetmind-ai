@@ -256,3 +256,48 @@ def delete_transcript(transcript_id):
         db.session.rollback()
         return _error(f"Failed to delete transcript: {str(e)}", 500)
 
+
+@transcriptions_bp.route("/transcriptions/<int:meeting_id>/save-text", methods=["POST"])
+@jwt_required()
+def save_live_transcript(meeting_id):
+    """Save a plain-text transcript produced by Live Transcription (browser Speech API)."""
+    current_user_id = get_jwt_identity()
+
+    meeting = Meeting.query.filter_by(id=meeting_id, user_id=current_user_id).first()
+    if not meeting:
+        return _error("Meeting not found", 404)
+
+    data = request.get_json(silent=True) or {}
+    transcript_text = (data.get("transcript_text") or "").strip()
+    if not transcript_text:
+        return _error("transcript_text is required", 400)
+
+    source = data.get("source", "live")
+
+    try:
+        # Upsert: replace any existing live transcript for this meeting
+        existing = Transcript.query.filter_by(
+            meeting_id=meeting_id,
+            user_id=current_user_id,
+            source="live",
+        ).first()
+
+        if existing:
+            existing.transcript_text = transcript_text
+            existing.source = source
+        else:
+            transcript = Transcript(
+                meeting_id=meeting_id,
+                user_id=current_user_id,
+                transcript_text=transcript_text,
+                source=source,
+                status="completed",
+            )
+            db.session.add(transcript)
+
+        db.session.commit()
+        return jsonify({"success": True, "message": "Transcript saved successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"save_live_transcript error: {e}")
+        return _error(f"Failed to save transcript: {str(e)}", 500)

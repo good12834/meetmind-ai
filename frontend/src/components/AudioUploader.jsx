@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Hourglass } from "lucide-react";
+import { AlertTriangle, Clock, FolderUp, Hourglass, Music, Upload, UploadCloud, X } from "lucide-react";
 import recordingService from "../services/recordingService";
 
 function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
@@ -170,8 +170,8 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
       <div className="w-full max-w-lg">
         {/* Header Icon & Title */}
         <div className="mb-4">
-          <div className="w-16 h-16 rounded-full bg-blue-600/10 border border-blue-500/20 flex items-center justify-center mx-auto text-2xl mb-3">
-            📁
+          <div className="w-16 h-16 rounded-full bg-blue-600/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-3">
+            <FolderUp className="w-7 h-7 text-blue-400" />
           </div>
           <h3 className="text-xl font-bold text-white">Upload Audio Recording</h3>
           <p className="text-sm text-gray-400 mt-1">
@@ -181,8 +181,9 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-left">
-            ⚠️ {errorMsg}
+          <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-left flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
@@ -208,7 +209,9 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
                 : "border-slate-700 hover:border-slate-600 bg-slate-950/40"
             }`}
           >
-            <div className="text-4xl mb-3">☁️</div>
+            <div className="mb-3">
+              <UploadCloud className="w-10 h-10 text-purple-400" />
+            </div>
             <p className="text-white font-semibold text-base">
               Drag and drop your audio file here, or{" "}
               <span className="text-purple-400 underline">browse</span>
@@ -232,8 +235,8 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
           <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-6 text-left">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-600/20 flex items-center justify-center text-lg">
-                  🎵
+                <div className="w-10 h-10 rounded-xl bg-purple-600/20 flex items-center justify-center">
+                  <Music className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-white text-sm line-clamp-1">
@@ -244,7 +247,7 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
                     {fileDuration > 0 && (
                       <>
                         <span>•</span>
-                        <span>⏱ {formatDuration(fileDuration)}</span>
+                        <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {formatDuration(fileDuration)}</span>
                       </>
                     )}
                   </div>
@@ -255,10 +258,10 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
                 type="button"
                 onClick={handleClear}
                 disabled={isUploading}
-                className="text-gray-400 hover:text-white p-1 text-sm font-bold"
+                className="text-gray-400 hover:text-white p-1 text-sm font-bold flex items-center justify-center"
                 title="Remove file"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -294,7 +297,7 @@ function AudioUploader({ meetingId, onUploadSuccess, onCancel }) {
                 </>
               ) : (
                 <>
-                  <span>⬆️</span>
+                  <Upload className="w-4 h-4" />
                   <span>Upload & Attach Audio</span>
                 </>
               )}
