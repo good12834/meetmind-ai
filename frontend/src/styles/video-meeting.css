@@ -1,0 +1,118 @@
+.vlobby, .vroom { min-height: 100vh; background: var(--bg); color: var(--text); }
+.vlobby { display: grid; place-items: center; padding: 24px; }
+.vlobby-card {
+  width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px; text-align: center;
+}
+.vlobby-card h1 { font-size: 24px; font-weight: 600; margin: 0 0 4px; }
+.vlobby-sub { color: var(--text-muted); margin: 0 0 20px; }
+.vlobby-preview { aspect-ratio: 16 / 9; margin-bottom: 16px; }
+.vlobby-actions { display: flex; justify-content: center; gap: 12px; margin-bottom: 16px; }
+.vjoin {
+  width: 100%; padding: 12px; border: 0; border-radius: 10px; background: var(--primary);
+  color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: filter .15s;
+}
+.vjoin:hover:not(:disabled) { filter: brightness(1.1); }
+.vjoin:disabled { opacity: .5; cursor: not-allowed; }
+.vlink { margin-top: 12px; background: none; border: 0; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+.vlink:hover { color: var(--text); }
+.verror { color: var(--danger); font-size: 13px; margin: 8px 0; text-align: center; }
+
+.vroom { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.vroom-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface);
+  flex-shrink: 0;
+}
+.vroom-header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+.vroom-meta { display: flex; align-items: center; gap: 16px; color: var(--text-muted); font-size: 13px; }
+.vlive { color: var(--live); animation: vpulse 1.4s ease-in-out infinite; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+@keyframes vpulse { 50% { opacity: .45; } }
+
+.vroom-body { flex: 1; display: flex; gap: 12px; padding: 12px; min-height: 0; overflow: hidden; }
+.vgrid {
+  flex: 1; display: grid; gap: 12px; grid-auto-rows: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  height: 100%;
+}
+.vgrid[data-count="1"] { grid-template-columns: 1fr; }
+.vgrid[data-count="2"] { grid-template-columns: repeat(2, 1fr); }
+.vgrid[data-count="3"], .vgrid[data-count="4"] { grid-template-columns: repeat(2, 1fr); }
+.vgrid[data-count="5"], .vgrid[data-count="6"] { grid-template-columns: repeat(3, 1fr); }
+
+.vtile {
+  position: relative; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; min-height: 160px; height: 100%;
+}
+.vtile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vtile-hidden { visibility: hidden; }
+.vtile-avatar {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 48px; font-weight: 600; color: var(--primary);
+  background: var(--surface-2);
+}
+.vtile-name {
+  position: absolute; left: 10px; bottom: 10px; padding: 3px 10px; font-size: 12px;
+  background: rgba(0, 0, 0, .65); border-radius: 999px; color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.vcontrols {
+  display: flex; justify-content: center; align-items: center; gap: 12px; padding: 14px;
+  background: var(--surface); border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.vbtn {
+  min-width: 48px; height: 48px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  font-size: 16px; cursor: pointer; transition: transform .15s, background .15s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.vbtn:hover { transform: translateY(-2px); }
+.vbtn.off { background: var(--danger); border-color: var(--danger); color: #fff; }
+.vbtn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.vbtn.danger { background: var(--danger); border-color: var(--danger); color: #fff; font-size: 14px; font-weight: 600; }
+
+.vchat {
+  width: 320px; display: flex; flex-direction: column; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); height: 100%;
+}
+.vchat-title { margin: 0; padding: 14px 16px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.vchat-list { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.vchat-empty { color: var(--text-muted); font-size: 13px; }
+.vchat-msg { display: flex; flex-direction: column; font-size: 14px; }
+.vchat-msg strong { font-size: 12px; color: var(--primary); }
+.vchat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.vchat-form input {
+  flex: 1; padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); outline: none;
+}
+.vchat-form input:focus { border-color: var(--primary); }
+.vchat-form button { padding: 0 14px; border: 0; border-radius: 8px; background: var(--primary); color: #fff; cursor: pointer; font-weight: 500; }
+
+.btn-video {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--primary);
+  background: transparent; color: var(--primary); cursor: pointer; transition: background .15s, color .15s;
+  display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13px;
+}
+.btn-video:hover { background: var(--primary); color: #fff; }
+
+.video-live-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35);
+  padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+}
+.video-live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #ef4444;
+  box-shadow: 0 0 6px #ef4444; animation: vpulse 1.4s ease-in-out infinite;
+}
+
+@media (max-width: 1024px) {
+  .vroom-body { flex-direction: column; }
+  .vchat { width: 100%; height: 280px; }
+}
+@media (max-width: 640px) {
+  .vgrid, .vgrid[data-count] { grid-template-columns: 1fr; }
+  .vcontrols { position: sticky; bottom: 0; flex-wrap: wrap; }
+}
+

@@ -1,0 +1,13 @@
+Flask
+Flask-Cors
+Flask-SQLAlchemy
+Flask-SocketIO
+simple-websocket
+PyMySQL
+python-dotenv
+Flask-JWT-Extended
+bcrypt
+requests
+faster-whisper==1.2.1
+# faster-whisper calls av.open(metadata_errors=...), removed in av 19
+av==18.1.0
