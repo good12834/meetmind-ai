@@ -16,3 +16,4 @@ pyannote.audio==3.1.1
 torch
 torchaudio
 gunicorn
+eventlet

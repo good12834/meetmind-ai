@@ -8,7 +8,7 @@ services:
     # The backend lives in the /backend subdirectory of this monorepo
     rootDir: backend
     buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
-    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --preload"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --worker-class eventlet --timeout 120 --preload"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
