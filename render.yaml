@@ -1,0 +1,33 @@
+# Render blueprint for the MeetMind AI backend (Flask + SocketIO)
+# Place this file at the repo root, then create a "Web Service" in Render
+# connecting this repository. Render auto-detects render.yaml.
+services:
+  - type: web
+    name: meetmind-ai-backend
+    runtime: python
+    # The backend lives in the /backend subdirectory of this monorepo
+    rootDir: backend
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --preload"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        sync: false
+      - key: OLLAMA_TIMEOUT
+        value: "300"
+      - key: OLLAMA_MAX_TRANSCRIPT_CHARS
+        value: "12000"
+    healthCheckPath: /api/health
+    # Render gives a free tier 512 MB RAM; torch/faster-whisper/pyannote.audio
+    # are heavy and may exceed it during build. Consider the Starter tier.

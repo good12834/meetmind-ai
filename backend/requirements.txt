@@ -15,3 +15,4 @@ av==18.1.0
 pyannote.audio==3.1.1
 torch
 torchaudio
+gunicorn

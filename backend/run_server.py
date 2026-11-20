@@ -1,4 +1,11 @@
+import os
 import sys
-sys.path.insert(0, '/c/Users/goodp/Desktop/meetmind-ai/backend')
+
+# Ensure the backend directory is on the path regardless of where Render runs from
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from app import app
-app.run(port=5000, debug=False)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+
