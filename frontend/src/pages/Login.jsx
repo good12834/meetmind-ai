@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Mic, Sparkles, Video, Check, AlertTriangle, Mail, Lock } from "lucide-react";
 import api from "../services/api";
 
 const features = [
-  { icon: "🎙️", title: "Record & transcribe", text: "Capture meetings and turn speech into timed transcripts." },
-  { icon: "✨", title: "AI summaries", text: "Key points, decisions and action items, generated locally." },
-  { icon: "📹", title: "Video meetings", text: "Start a call and keep everything in one place." },
+  { icon: Mic, title: "Record & transcribe", text: "Capture meetings and turn speech into timed transcripts." },
+  { icon: Sparkles, title: "AI summaries", text: "Key points, decisions and action items, generated locally." },
+  { icon: Video, title: "Video meetings", text: "Start a call and keep everything in one place." },
 ];
 
 function Login() {
@@ -52,7 +53,7 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white grid lg:grid-cols-2">
+    <div className="min-h-screen bg-slate-950 text-white grid lg:grid-cols-2" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1727773458292-9da4284a4d3e?q=80&w=627&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D')", backgroundSize: "cover", backgroundPosition: "center" }}>
       {/* Brand panel */}
       <aside className="hidden lg:flex relative overflow-hidden flex-col justify-between p-12 border-r border-slate-800 bg-gradient-to-br from-purple-900/40 via-slate-950 to-slate-950">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-purple-600/20 blur-3xl" />
@@ -76,9 +77,9 @@ function Login() {
           <ul className="space-y-5">
             {features.map((f) => (
               <li key={f.title} className="flex items-start gap-4">
-                <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-lg shrink-0">
-                  {f.icon}
-                </span>
+<span className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-lg shrink-0">
+  <f.icon className="w-5 h-5 text-purple-400" />
+</span>
                 <div>
                   <p className="font-semibold text-white">{f.title}</p>
                   <p className="text-sm text-gray-400">{f.text}</p>
@@ -109,7 +110,7 @@ function Login() {
 
             {justRegistered && !message && (
               <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
-                <span>✓</span>
+                <span><Check className="w-4 h-4" /></span>
                 <span>Account created. Sign in to continue.</span>
               </div>
             )}
@@ -119,7 +120,7 @@ function Login() {
                 role="alert"
                 className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
               >
-                <span>⚠️</span>
+                <span><AlertTriangle className="w-4 h-4" /></span>
                 <span>{message}</span>
               </div>
             )}
@@ -129,9 +130,9 @@ function Login() {
                 Email address
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                  ✉️
-                </span>
+<span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+  <Mail className="w-4 h-4" />
+</span>
                 <input
                   id="email"
                   type="email"
@@ -152,9 +153,9 @@ function Login() {
                 Password
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                  🔒
-                </span>
+<span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+  <Lock className="w-4 h-4" />
+</span>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}

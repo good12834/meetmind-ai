@@ -92,7 +92,7 @@ function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white grid lg:grid-cols-2">
+    <div className="min-h-screen bg-slate-950 text-white grid lg:grid-cols-2" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1727773458292-9da4284a4d3e?q=80&w=627&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D')", backgroundSize: "cover", backgroundPosition: "center" }}>
       {/* Brand panel */}
       <aside className="hidden lg:flex relative overflow-hidden flex-col justify-between p-12 border-r border-slate-800 bg-gradient-to-br from-purple-900/40 via-slate-950 to-slate-950">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-purple-600/20 blur-3xl" />
