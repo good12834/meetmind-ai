@@ -48,9 +48,12 @@ def register():
         db.session.rollback()
         return _error("Failed to create account. Please try again.", 500)
 
+    access_token = create_access_token(identity=str(new_user.id))
+
     return jsonify({
         "success": True,
         "message": "Account created successfully",
+        "access_token": access_token,
         "user": {
             "id": new_user.id,
             "name": new_user.name,

@@ -15,10 +15,16 @@ def _parse_allowed_origins():
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
+        "https://meetmind-ai-lake.vercel.app",
     ]
 
 
 ALLOWED_ORIGINS = _parse_allowed_origins()
+
+# Add Vercel deployment origin for production
+VERCEL_URL = os.getenv("VERCEL_URL")
+if VERCEL_URL:
+    ALLOWED_ORIGINS.append(f"https://{VERCEL_URL}")
 
 app = Flask(__name__)
 
