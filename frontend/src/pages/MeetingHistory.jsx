@@ -436,7 +436,7 @@ export default function MeetingHistory() {
             <Calendar className="w-12 h-12 mx-auto text-slate-600 mb-3" />
             <h2 className="text-xl font-semibold">No meetings found</h2>
             <p className="text-slate-400 mt-2 mb-6">
-              {hasFilters ? "Try adjusting your search or filters." : "Create a meeting to start building your history."}
+              {hasFilters ? "Try adjusting your search or filters." : "Create a new meeting to get started."}
             </p>
             {hasFilters ? (
               <button
@@ -450,7 +450,7 @@ export default function MeetingHistory() {
                 to="/meetings"
                 className="bg-purple-600 hover:bg-purple-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition inline-block"
               >
-                + New Meeting
+                Create a new meeting to get started
               </Link>
             )}
           </div>

@@ -37,15 +37,22 @@ def create_meeting():
 
     description, _ = validate_meeting_description(data.get("description"))
 
-    meeting_date, date_err = validate_meeting_date(data.get("meeting_date"))
-    if date_err:
-        return _error(date_err, 400)
-    if meeting_date is None:
-        return _error("Meeting date is required and must be in the future", 400)
-
     status, status_err = validate_meeting_status(data.get("status", "scheduled"))
     if status_err:
         return _error(status_err, 400)
+
+    raw_date = data.get("meeting_date")
+    if not raw_date:
+        meeting_date = datetime.utcnow()
+    else:
+        meeting_date, date_err = validate_meeting_date(raw_date)
+        if date_err:
+            if status in ("in-progress", "live", "transcribed", "completed") or "past" in str(date_err).lower():
+                meeting_date = datetime.utcnow()
+            else:
+                return _error(date_err, 400)
+        if meeting_date is None:
+            meeting_date = datetime.utcnow()
 
     new_meeting = Meeting(
         user_id=current_user_id,

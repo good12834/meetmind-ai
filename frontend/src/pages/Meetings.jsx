@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calendar,
@@ -20,13 +20,29 @@ import useMeetings from "../hooks/useMeetings";
 import "../styles/meetings.css";
 
 const isLive = (m) => m.status === "in-progress" || m.live;
+const hasTranscript = (m) => Boolean(m.has_transcript || m.transcripts_count > 0);
+const getTime = (m) => new Date(m.meeting_date || m.created_at || 0).getTime();
+
+const FILTER_LABELS = {
+  live: "Live now",
+  week: "This week",
+  pendingai: "Pending AI summary",
+  recorded: "Recorded",
+  transcribed: "Transcribed",
+  summarized: "Summarized",
+  scheduled: "Scheduled",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
 
 function matchesFilter(meeting, statusFilter) {
   if (statusFilter === "all") return true;
   if (statusFilter === "live") return isLive(meeting);
+  if (statusFilter === "week") return getTime(meeting) >= Date.now() - 7 * 86400000;
+  if (statusFilter === "pendingai") return hasTranscript(meeting) && !meeting.has_summary;
   if (statusFilter === "recorded") return meeting.recordings_count > 0 || meeting.has_recording;
-  if (statusFilter === "transcribed") return meeting.has_transcript || meeting.transcripts_count > 0;
-  if (statusFilter === "summarized") return meeting.has_summary;
+  if (statusFilter === "transcribed") return hasTranscript(meeting);
+  if (statusFilter === "summarized") return Boolean(meeting.has_summary);
   return meeting.status === statusFilter;
 }
 
@@ -60,12 +76,32 @@ function getInitialView() {
 
 export default function Meetings() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const { meetings, loading, error, stats, createMeeting, updateMeeting, deleteMeeting } = useMeetings();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sort, setSort] = useState("newest");
-  const [view, setView] = useState(getInitialView);
 
+  // Filters live in the URL so refresh, back and shared links keep them
+  const query = params.get("q") || "";
+  const statusFilter = params.get("status") || "all";
+  const sort = params.get("sort") || "newest";
+
+  const setParam = useCallback(
+    (key, value, def) =>
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (!value || value === def) next.delete(key);
+          else next.set(key, value);
+          return next;
+        },
+        { replace: true }
+      ),
+    [setParams]
+  );
+  const setQuery = (v) => setParam("q", v, "");
+  const setStatusFilter = (v) => setParam("status", v, "all");
+  const setSort = (v) => setParam("sort", v, "newest");
+
+  const [view, setView] = useState(getInitialView);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -73,13 +109,17 @@ export default function Meetings() {
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
   const [startVideo, setStartVideo] = useState(false);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
   const [toast, setToast] = useState(null);
+
+  const initialFormRef = useRef(emptyForm);
+  const triggerRef = useRef(null);
 
   const showToast = useCallback((type, text) => setToast({ type, text, id: Date.now() }), []);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3200);
+    const t = setTimeout(() => setToast(null), toast.type === "error" ? 5000 : 3200);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -104,11 +144,9 @@ export default function Meetings() {
     }
     return [...list].sort((a, b) => {
       if (isLive(a) !== isLive(b)) return isLive(a) ? -1 : 1;
-      const da = new Date(a.meeting_date || a.created_at || 0).getTime();
-      const db = new Date(b.meeting_date || b.created_at || 0).getTime();
-      if (sort === "oldest") return da - db;
+      if (sort === "oldest") return getTime(a) - getTime(b);
       if (sort === "title") return (a.title || "").localeCompare(b.title || "");
-      return db - da;
+      return getTime(b) - getTime(a);
     });
   }, [meetings, query, statusFilter, sort]);
 
@@ -116,37 +154,56 @@ export default function Meetings() {
   const otherMeetings = useMemo(() => filtered.filter((m) => !isLive(m)), [filtered]);
   const hasFilters = query.trim() !== "" || statusFilter !== "all";
 
-  const clearFilters = () => {
-    setQuery("");
-    setStatusFilter("all");
+  // Stats computed here so "Pending AI" and "This week" match their filters exactly
+  const counts = useMemo(
+    () => ({
+      week: meetings.filter((m) => matchesFilter(m, "week")).length,
+      pendingai: meetings.filter((m) => matchesFilter(m, "pendingai")).length,
+    }),
+    [meetings]
+  );
+
+  const clearFilters = () => setParams({}, { replace: true });
+
+  const isDirty = useMemo(
+    () => modalOpen && JSON.stringify(form) !== JSON.stringify(initialFormRef.current),
+    [form, modalOpen]
+  );
+
+  const openModal = (target, nextForm, video = false) => {
+    triggerRef.current = document.activeElement;
+    initialFormRef.current = nextForm;
+    setStartVideo(video);
+    setEditTarget(target);
+    setForm(nextForm);
+    setFormError("");
+    setDiscardPrompt(false);
+    setModalOpen(true);
   };
 
-  const openCreate = useCallback(() => {
-    setStartVideo(false);
-    setEditTarget(null);
-    setForm(emptyForm);
-    setFormError("");
-    setModalOpen(true);
-  }, []);
+  const openCreate = useCallback((video = false) => openModal(null, emptyForm, video === true), []);
 
-  const openRename = (meeting) => {
-    setStartVideo(false);
-    setEditTarget(meeting);
-    setForm({
+  const openRename = (meeting) =>
+    openModal(meeting, {
       title: meeting.title || "",
       description: meeting.description || "",
       meeting_date: meeting.meeting_date ? meeting.meeting_date.slice(0, 16) : "",
       status: meeting.status || "scheduled",
     });
-    setFormError("");
-    setModalOpen(true);
-  };
+
+  const forceClose = useCallback(() => {
+    setModalOpen(false);
+    setDiscardPrompt(false);
+    // Return focus to whatever opened the modal
+    setTimeout(() => triggerRef.current?.focus?.(), 0);
+  }, []);
 
   const closeModal = useCallback(() => {
-    if (!saving) setModalOpen(false);
-  }, [saving]);
+    if (saving) return;
+    if (isDirty) setDiscardPrompt(true);
+    else forceClose();
+  }, [saving, isDirty, forceClose]);
 
-  // Escape closes the modal, N opens it, body scroll locks while open
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape" && modalOpen) {
@@ -175,7 +232,8 @@ export default function Meetings() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) {
+    const title = form.title.trim();
+    if (!title) {
       setFormError("Title is required");
       return;
     }
@@ -183,11 +241,21 @@ export default function Meetings() {
     setFormError("");
     try {
       if (editTarget) {
-        await updateMeeting(editTarget.id, form);
+        // Send only what changed
+        const changes = {};
+        Object.keys(form).forEach((k) => {
+          if (form[k] !== initialFormRef.current[k]) changes[k] = form[k];
+        });
+        if ("title" in changes) changes.title = title;
+        if (Object.keys(changes).length) await updateMeeting(editTarget.id, changes);
         showToast("success", "Meeting updated");
       } else {
         const { status: _ignored, ...rest } = form;
-        const created = await createMeeting({ ...rest, status: startVideo ? "in-progress" : "scheduled" });
+        const created = await createMeeting({
+          ...rest,
+          title,
+          status: startVideo ? "in-progress" : "scheduled",
+        });
         if (created?.id) {
           setModalOpen(false);
           navigate(startVideo ? `/meetings/${created.id}/video` : `/meetings/${created.id}`);
@@ -195,7 +263,7 @@ export default function Meetings() {
         }
         showToast("success", "Meeting created");
       }
-      setModalOpen(false);
+      forceClose();
     } catch (err) {
       setFormError(err.response?.data?.message || "Failed to save meeting");
     } finally {
@@ -215,10 +283,8 @@ export default function Meetings() {
     }
   };
 
-  const downloadRecording = (meeting) => {
-    // Recordings live on the details page
-    navigate(`/meetings/${meeting.id}`);
-  };
+  const downloadRecording = (meeting) => navigate(`/meetings/${meeting.id}`);
+  const joinVideo = (meeting) => navigate(`/meetings/${meeting.id}/video`);
 
   const renderCards = (list) => (
     <div className={view === "grid" ? "meetings-grid" : "meetings-list"}>
@@ -229,7 +295,7 @@ export default function Meetings() {
           onRename={openRename}
           onDelete={setDeleteTarget}
           onDownload={downloadRecording}
-          onJoinVideo={(meeting) => navigate(`/meetings/${meeting.id}/video`)}
+          onJoinVideo={joinVideo}
         />
       ))}
     </div>
@@ -237,10 +303,13 @@ export default function Meetings() {
 
   const statCards = [
     { key: "all", label: "Total", icon: Calendar, value: stats.total, filter: "all" },
-    { key: "week", label: "This week", icon: Clock, value: stats.thisWeek },
+    { key: "week", label: "This week", icon: Clock, value: counts.week, filter: "week" },
     { key: "live", label: "Live now", icon: Radio, value: stats.liveNow, filter: "live" },
-    { key: "ai", label: "Pending AI", icon: Sparkles, value: stats.pendingAI, filter: "transcribed" },
+    { key: "pendingai", label: "Pending AI", icon: Sparkles, value: counts.pendingai, filter: "pendingai" },
   ];
+
+  const pastDate =
+    !editTarget && !startVideo && form.meeting_date && new Date(form.meeting_date).getTime() < Date.now() - 60000;
 
   return (
     <div className="page-shell">
@@ -254,16 +323,10 @@ export default function Meetings() {
             </p>
           </div>
           <div className="header-actions">
-            <button
-              className="btn btn-secondary flex items-center gap-1.5"
-              onClick={() => {
-                openCreate();
-                setStartVideo(true);
-              }}
-            >
+            <button className="btn btn-secondary flex items-center gap-1.5" onClick={() => openCreate(true)}>
               <Video className="w-4 h-4" /> Start video meeting
             </button>
-            <button className="btn btn-primary" onClick={openCreate} title="Shortcut: N">
+            <button className="btn btn-primary" onClick={() => openCreate()} title="Shortcut: N">
               + New Meeting
             </button>
           </div>
@@ -271,25 +334,22 @@ export default function Meetings() {
 
         <div className="meetings-stats">
           {statCards.map((s) => {
-            const clickable = Boolean(s.filter);
-            const active = clickable && statusFilter === s.filter && s.key !== "all"
-              ? true
-              : s.key === "all" && statusFilter === "all" && !query;
-            const Tag = clickable ? "button" : "div";
+            const active = statusFilter === s.filter && !(s.key === "all" && query);
             const Icon = s.icon;
             return (
-              <Tag
+              <button
                 key={s.key}
-                type={clickable ? "button" : undefined}
-                className={`card-surface stat-card${clickable ? " clickable" : ""}${active ? " active" : ""}`}
-                onClick={clickable ? () => setStatusFilter(s.filter) : undefined}
+                type="button"
+                aria-pressed={active}
+                className={`card-surface stat-card clickable${active ? " active" : ""}`}
+                onClick={() => setStatusFilter(active && s.filter !== "all" ? "all" : s.filter)}
               >
                 <div className="stat-top">
                   <div className="section-label">{s.label}</div>
                   <span className="stat-icon"><Icon className="w-4 h-4 text-purple-400" /></span>
                 </div>
                 {loading ? <div className="stat-skeleton" /> : <div className="stat-value">{s.value}</div>}
-              </Tag>
+              </button>
             );
           })}
         </div>
@@ -304,13 +364,28 @@ export default function Meetings() {
 
         {!loading && (
           <div className="results-bar">
-            <span>
+            <span className="flex items-center gap-2 flex-wrap">
               {filtered.length} {filtered.length === 1 ? "meeting" : "meetings"}
-              {hasFilters ? " match your filters" : ""}
+              {statusFilter !== "all" && (
+                <span className="filter-pill">
+                  {FILTER_LABELS[statusFilter] || statusFilter}
+                  <button type="button" aria-label="Remove status filter" onClick={() => setStatusFilter("all")}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {query.trim() && (
+                <span className="filter-pill">
+                  “{query.trim()}”
+                  <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
             </span>
             {hasFilters && (
               <button type="button" className="link-btn" onClick={clearFilters}>
-                Clear filters
+                Clear all
               </button>
             )}
           </div>
@@ -340,7 +415,7 @@ export default function Meetings() {
               hasFilters ? (
                 <button className="btn btn-secondary" onClick={clearFilters}>Clear filters</button>
               ) : (
-                <button className="btn btn-primary" onClick={openCreate}>+ New Meeting</button>
+                <button className="btn btn-primary" onClick={() => openCreate()}>+ New Meeting</button>
               )
             }
           />
@@ -353,6 +428,15 @@ export default function Meetings() {
                 <span className="live-dot" />
                 <h2>Live now</h2>
                 <span className="count-pill">{liveMeetings.length}</span>
+                {liveMeetings.length === 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-primary live-join"
+                    onClick={() => joinVideo(liveMeetings[0])}
+                  >
+                    <Video className="w-4 h-4" /> Join video
+                  </button>
+                )}
               </div>
               {renderCards(liveMeetings)}
             </section>
@@ -383,7 +467,12 @@ export default function Meetings() {
               <h3 id="meeting-modal-title" style={{ margin: 0 }}>
                 {editTarget ? "Edit Meeting" : "New Meeting"}
               </h3>
-              <button type="button" className="btn btn-secondary flex items-center justify-center p-2" onClick={closeModal} aria-label="Close">
+              <button
+                type="button"
+                className="btn btn-secondary flex items-center justify-center p-2"
+                onClick={closeModal}
+                aria-label="Close"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -404,6 +493,7 @@ export default function Meetings() {
                   }}
                   required
                 />
+                <div className="field-hint">{form.title.length}/120</div>
               </div>
 
               <div>
@@ -439,6 +529,7 @@ export default function Meetings() {
                     </button>
                   ))}
                 </div>
+                {pastDate && <div className="field-hint warn">This date is in the past.</div>}
               </div>
 
               {editTarget && (
@@ -473,15 +564,31 @@ export default function Meetings() {
                 </label>
               )}
 
-              {formError && (
-                <div role="alert" className="form-error">{formError}</div>
+              {formError && <div role="alert" className="form-error">{formError}</div>}
+
+              {discardPrompt && (
+                <div role="alert" className="discard-bar">
+                  <span>Discard your unsaved changes?</span>
+                  <span className="discard-actions">
+                    <button type="button" className="link-btn" onClick={() => setDiscardPrompt(false)}>
+                      Keep editing
+                    </button>
+                    <button type="button" className="link-btn danger" onClick={forceClose}>
+                      Discard
+                    </button>
+                  </span>
+                </div>
               )}
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={saving || (editTarget && !isDirty)}
+                >
                   {saving
                     ? "Saving…"
                     : editTarget
@@ -506,8 +613,15 @@ export default function Meetings() {
 
       {toast && (
         <div key={toast.id} className={`toast toast-${toast.type} flex items-center gap-1.5`} role="status">
-          {toast.type === "success" ? <Check className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-amber-400" />}
+          {toast.type === "success" ? (
+            <Check className="w-4 h-4 text-emerald-400" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+          )}
           <span>{toast.text}</span>
+          <button type="button" className="toast-close" aria-label="Dismiss" onClick={() => setToast(null)}>
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

@@ -8,15 +8,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowRight,
   Calendar,
   Check,
   Clipboard,
   Mic,
   Pause,
   Play,
+  Plus,
   Radio,
   Save,
   Search,
+  Sparkles,
   Square,
   Trash2,
   X,
@@ -85,6 +88,10 @@ export default function LiveTranscription() {
   // save state
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveSuccessInfo, setSaveSuccessInfo] = useState(null);
+  const [showNewMeetingModal, setShowNewMeetingModal] = useState(false);
+  const [newMeetingTitle, setNewMeetingTitle] = useState("");
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
 
   const bottomRef = useRef(null);
 
@@ -246,22 +253,98 @@ export default function LiveTranscription() {
 
   // ── save transcript to meeting ──
   const handleSave = async () => {
-    if (!meetingId || lines.length === 0) return;
+    if (lines.length === 0) return;
+    if (!meetingId) {
+      setNewMeetingTitle(
+        `Live Meeting - ${new Date().toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`
+      );
+      setShowNewMeetingModal(true);
+      return;
+    }
     setSaving(true);
     setSaved(false);
+    setError("");
     try {
       const fullText = lines
         .map((l) => `[${l.timestamp}] ${l.speaker}: ${l.text}`)
         .join("\n");
       await api.post(`/transcriptions/${meetingId}/save-text`, {
         transcript_text: fullText,
+        segments: lines,
+        duration: elapsed,
         source: "live",
       });
       setSaved(true);
+      setSaveSuccessInfo({
+        meetingId,
+        meetingTitle: meeting?.title || "Meeting",
+      });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save transcript.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── create new meeting on the fly and save transcript ──
+  const handleCreateMeetingAndSave = async (e) => {
+    e?.preventDefault();
+    if (lines.length === 0) {
+      setError("No transcript lines to save.");
+      return;
+    }
+    setCreatingMeeting(true);
+    setError("");
+    try {
+      const title =
+        newMeetingTitle.trim() ||
+        `Live Meeting - ${new Date().toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`;
+
+      const meetingRes = await api.post("/meetings", {
+        title,
+        meeting_date: new Date().toISOString(),
+        status: "in-progress",
+      });
+      const created = meetingRes.data?.meeting || meetingRes.data;
+      const newId = created.id;
+      setMeetings((prev) => [created, ...prev]);
+      setMeetingId(String(newId));
+      setMeeting(created);
+
+      const fullText = lines
+        .map((l) => `[${l.timestamp}] ${l.speaker}: ${l.text}`)
+        .join("\n");
+      await api.post(`/transcriptions/${newId}/save-text`, {
+        transcript_text: fullText,
+        segments: lines,
+        duration: elapsed,
+        source: "live",
+      });
+
+      setSaved(true);
+      setSaveSuccessInfo({
+        meetingId: newId,
+        meetingTitle: created.title || title,
+      });
+      setShowNewMeetingModal(false);
+      setNewMeetingTitle("");
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to create meeting and save transcript."
+      );
+    } finally {
+      setCreatingMeeting(false);
     }
   };
 
@@ -306,6 +389,30 @@ export default function LiveTranscription() {
           </div>
         </div>
 
+        {/* ── Saved Success banner ── */}
+        {saved && saveSuccessInfo && (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-emerald-950/20">
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <p className="font-semibold text-white">Transcript saved successfully!</p>
+                <p className="text-xs text-emerald-300/90 mt-0.5">
+                  Attached to meeting: <strong>{saveSuccessInfo.meetingTitle}</strong>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to={`/meetings/${saveSuccessInfo.meetingId}`}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow"
+              >
+                <span>Open Meeting Details</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* ── Error banner ── */}
         {error && (
           <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center justify-between">
@@ -336,18 +443,40 @@ export default function LiveTranscription() {
 
             {/* Meeting selector */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Meeting</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Target Meeting</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewMeetingTitle(
+                      `Live Meeting - ${new Date().toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}`
+                    );
+                    setShowNewMeetingModal(true);
+                  }}
+                  className="text-xs text-purple-400 hover:text-purple-300 font-semibold inline-flex items-center gap-1 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Meeting</span>
+                </button>
+              </div>
               <select
                 value={meetingId}
                 onChange={(e) => {
                   setMeetingId(e.target.value);
                   const m = meetings.find((m) => String(m.id) === e.target.value);
                   setMeeting(m || null);
+                  setSaved(false);
+                  setSaveSuccessInfo(null);
                 }}
                 disabled={isListening}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
               >
-                <option value="">— Select a meeting —</option>
+                <option value="">— Select a meeting to attach —</option>
                 {meetings.map((m) => (
                   <option key={m.id} value={m.id}>{m.title}</option>
                 ))}
@@ -451,18 +580,19 @@ export default function LiveTranscription() {
 
               <button
                 onClick={handleSave}
-                disabled={!meetingId || lines.length === 0 || saving}
-                className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition"
+                disabled={lines.length === 0 || saving}
+                className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-lg shadow-purple-600/20"
               >
                 {saving ? (
                   "Saving…"
                 ) : saved ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-400" /> Saved!
+                    <Check className="w-4 h-4 text-emerald-400" /> Saved to Meeting!
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" /> Save to Meeting
+                    <Save className="w-4 h-4" />
+                    <span>{meetingId ? "Save to Meeting" : "Save to Meeting (Choose or Create)"}</span>
                   </>
                 )}
               </button>
@@ -470,7 +600,7 @@ export default function LiveTranscription() {
               {meetingId && (
                 <Link
                   to={`/meetings/${meetingId}`}
-                  className="block text-center text-xs text-purple-400 hover:underline mt-1"
+                  className="block text-center text-xs text-purple-400 hover:underline mt-1 font-medium"
                 >
                   Open meeting details →
                 </Link>
@@ -620,6 +750,105 @@ export default function LiveTranscription() {
           </div>
         </div>
       </main>
+
+      {/* ── Quick Create / Select Meeting Modal ── */}
+      {showNewMeetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                <span>Save Transcript to Meeting</span>
+              </h3>
+              <button
+                onClick={() => setShowNewMeetingModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400">
+              Select an existing meeting or create a new one to save your live transcript.
+            </p>
+
+            {/* Existing meetings selection */}
+            {meetings.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-300">Choose existing meeting:</label>
+                <select
+                  value={meetingId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setMeetingId(id);
+                    const m = meetings.find((item) => String(item.id) === id);
+                    setMeeting(m || null);
+                  }}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">— Select an existing meeting —</option>
+                  {meetings.map((m) => (
+                    <option key={m.id} value={m.id}>{m.title}</option>
+                  ))}
+                </select>
+                {meetingId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewMeetingModal(false);
+                      handleSave();
+                    }}
+                    disabled={saving}
+                    className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save to Selected Meeting</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-800" />
+              <span className="flex-shrink mx-2 text-[11px] text-gray-500 uppercase tracking-wider">or create new</span>
+              <div className="flex-grow border-t border-slate-800" />
+            </div>
+
+            {/* Quick create new meeting form */}
+            <form onSubmit={handleCreateMeetingAndSave} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-300">New meeting title:</label>
+                <input
+                  type="text"
+                  value={newMeetingTitle}
+                  onChange={(e) => setNewMeetingTitle(e.target.value)}
+                  placeholder="e.g. Product Review & Sync"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 mt-1 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewMeetingModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingMeeting}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{creatingMeeting ? "Creating & Saving…" : "Create & Save Transcript"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

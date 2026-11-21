@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Check, Clock, Box, Calendar } from "lucide-react";
+import { ArrowLeft, Box, Calendar, Check, Clock, FolderUp, Mic, Plus } from "lucide-react";
 import api from "../services/api";
 import recordingService from "../services/recordingService";
 import AudioRecorder from "../components/AudioRecorder";
@@ -182,17 +182,20 @@ function RecordMeeting() {
                   Target Meeting
                 </span>
                 <h1 className="text-2xl font-bold text-white mt-1">{meeting.title}</h1>
-                <p className="text-gray-400 text-xs mt-1">
-                  📅 {formatDate(meeting.meeting_date || meeting.created_at)} • Status:{" "}
-                  <span className="capitalize text-gray-300">{meeting.status}</span>
+                <p className="text-gray-400 text-xs mt-1 flex items-center gap-1.5 flex-wrap">
+                  <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                  <span>{formatDate(meeting.meeting_date || meeting.created_at)}</span>
+                  <span>•</span>
+                  <span>Status: <span className="capitalize text-gray-300">{meeting.status}</span></span>
                 </p>
               </div>
 
               <Link
                 to={`/meetings/${meeting.id}`}
-                className="bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white px-4 py-2 rounded-xl text-sm font-semibold transition self-start sm:self-auto"
+                className="bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white px-4 py-2 rounded-xl text-sm font-semibold transition self-start sm:self-auto flex items-center gap-1.5"
               >
-                ← View Meeting Details
+                <ArrowLeft className="w-4 h-4" />
+                <span>View Meeting Details</span>
               </Link>
             </div>
 
@@ -206,7 +209,7 @@ function RecordMeeting() {
                     : "border-transparent text-gray-400 hover:text-white"
                 }`}
               >
-                <span>🎙️</span>
+                <Mic className="w-4 h-4" />
                 <span>Record via Browser</span>
               </button>
               <button
@@ -217,7 +220,7 @@ function RecordMeeting() {
                     : "border-transparent text-gray-400 hover:text-white"
                 }`}
               >
-                <span>📁</span>
+                <FolderUp className="w-4 h-4" />
                 <span>Upload Audio File</span>
               </button>
             </div>
@@ -312,7 +315,22 @@ function RecordMeeting() {
               )}
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center max-w-xl mx-auto">
+            <Calendar className="w-12 h-12 mx-auto text-purple-400 mb-4" />
+            <h2 className="text-xl font-bold text-white mb-2">No meeting selected</h2>
+            <p className="text-gray-400 text-sm mb-6">
+              Create a new meeting to get started with recording and transcription.
+            </p>
+            <Link
+              to="/meetings"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create a new meeting to get started</span>
+            </Link>
+          </div>
+        )}
       </main>
     </div>
   );

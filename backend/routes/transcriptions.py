@@ -272,31 +272,62 @@ def save_live_transcript(meeting_id):
     if not transcript_text:
         return _error("transcript_text is required", 400)
 
-    source = data.get("source", "live")
+    source = str(data.get("source") or "live").strip().lower()
+    if source not in ("live", "upload", "browser"):
+        source = "live"
+
+    raw_segments = data.get("segments") or []
+    segments = []
+    if isinstance(raw_segments, list):
+        for s in raw_segments:
+            if isinstance(s, dict):
+                segments.append({
+                    "start": float(s.get("elapsed", s.get("start", 0.0))),
+                    "end": float(s.get("elapsed", s.get("end", 0.0))),
+                    "text": str(s.get("text", "")).strip(),
+                    "speaker": str(s.get("speaker", "Speaker")),
+                    "timestamp": str(s.get("timestamp", "")),
+                })
+
+    duration = float(data.get("duration") or (segments[-1]["end"] if segments else 0.0))
 
     try:
-        # Upsert: replace any existing live transcript for this meeting
-        existing = Transcript.query.filter_by(
+        # Upsert: update existing transcript or create a new one
+        transcript = Transcript.query.filter_by(
             meeting_id=meeting_id,
             user_id=current_user_id,
-            source="live",
         ).first()
 
-        if existing:
-            existing.transcript_text = transcript_text
-            existing.source = source
+        if transcript:
+            transcript.full_text = transcript_text
+            transcript.source = source
+            if segments:
+                transcript.segments = segments
+            if duration > 0:
+                transcript.duration = duration
+            transcript.status = "completed"
         else:
             transcript = Transcript(
                 meeting_id=meeting_id,
                 user_id=current_user_id,
-                transcript_text=transcript_text,
+                full_text=transcript_text,
                 source=source,
+                segments=segments if segments else None,
+                duration=duration,
                 status="completed",
             )
             db.session.add(transcript)
 
+        # Update meeting status to completed if scheduled/in-progress
+        if meeting.status in ("scheduled", "in-progress"):
+            meeting.status = "completed"
+
         db.session.commit()
-        return jsonify({"success": True, "message": "Transcript saved successfully"}), 200
+        return jsonify({
+            "success": True,
+            "message": "Transcript saved successfully to meeting",
+            "transcript": transcript.to_dict(),
+        }), 200
     except Exception as e:
         db.session.rollback()
         logger.error(f"save_live_transcript error: {e}")

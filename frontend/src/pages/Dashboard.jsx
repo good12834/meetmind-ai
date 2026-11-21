@@ -15,6 +15,7 @@ import {
   Mic,
   Plus,
   Rocket,
+  Sparkles,
   Users,
   Video,
 } from "lucide-react";
@@ -178,14 +179,44 @@ export default function Dashboard() {
 
       <main className="max-w-6xl mx-auto p-6 sm:p-8 space-y-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl sm:text-4xl font-extrabold">
               {getGreeting()}, <span className="text-purple-400">{user.name || "User"}</span>
             </h2>
             <p className="text-gray-400 mt-1">AI Meeting Dashboard — your meeting intelligence at a glance.</p>
           </div>
+          <Link
+            to="/meetings"
+            className="self-start sm:self-auto bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-purple-600/20 transition inline-flex items-center gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create a new meeting to get started</span>
+          </Link>
         </div>
+
+        {/* Empty state onboarding banner when no meetings exist yet */}
+        {meetings.length === 0 && !loading && (
+          <div className="bg-gradient-to-r from-purple-900/30 via-slate-900 to-slate-900 border border-purple-500/30 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                <span>Ready to start collaborating?</span>
+              </h3>
+              <p className="text-sm text-gray-300">
+                Create a new meeting to get started with live speech-to-text, AI notes, and action tracking.
+              </p>
+            </div>
+            <Link
+              to="/meetings"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm px-6 py-3 rounded-xl shadow-lg shadow-purple-600/30 transition inline-flex items-center gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create a new meeting to get started</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
 
         {error && (
           <div role="alert" className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
@@ -245,7 +276,16 @@ export default function Dashboard() {
               {loading ? (
                 <div className="h-12 rounded-xl bg-slate-800 animate-pulse" />
               ) : upcoming.length === 0 ? (
-                <p className="text-sm text-gray-400">No upcoming meetings scheduled.</p>
+                <div className="text-center py-5">
+                  <p className="text-sm text-gray-400 mb-2">No upcoming meetings scheduled.</p>
+                  <Link
+                    to="/meetings"
+                    className="text-xs text-purple-400 hover:text-purple-300 font-semibold inline-flex items-center gap-1"
+                  >
+                    <span>Create a new meeting to get started</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <Link
@@ -279,7 +319,16 @@ export default function Dashboard() {
               {loading ? (
                 <div className="h-12 rounded-xl bg-slate-800 animate-pulse" />
               ) : completedMeetings.length === 0 ? (
-                <p className="text-sm text-gray-400">No completed meetings yet.</p>
+                <div className="text-center py-5">
+                  <p className="text-sm text-gray-400 mb-2">No completed meetings yet.</p>
+                  <Link
+                    to="/meetings"
+                    className="text-xs text-purple-400 hover:text-purple-300 font-semibold inline-flex items-center gap-1"
+                  >
+                    <span>Create a new meeting to get started</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {completedMeetings.map((m) => (

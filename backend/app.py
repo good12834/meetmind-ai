@@ -286,6 +286,16 @@ def auto_sync_schema():
             if "transcripts" not in tables:
                 db.create_all()
                 app.logger.info("Auto-sync: created transcripts table.")
+            else:
+                # Ensure transcripts has the source column
+                t_cols = [c["name"] for c in inspector.get_columns("transcripts")]
+                if "source" not in t_cols:
+                    try:
+                        db.session.execute(text("ALTER TABLE transcripts ADD COLUMN source VARCHAR(50) DEFAULT 'live'"))
+                        db.session.commit()
+                        app.logger.info("Auto-sync: added column 'source' to transcripts.")
+                    except Exception:
+                        db.session.rollback()
 
             if "meeting_summaries" not in tables:
                 db.create_all()

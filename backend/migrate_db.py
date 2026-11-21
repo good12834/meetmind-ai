@@ -78,6 +78,50 @@ def migrate():
         if "transcripts" in final_tables:
             t_cols = [c["name"] for c in updated_inspector.get_columns("transcripts")]
             print(f"Columns in 'transcripts': {t_cols}")
+            expected_columns = {
+                "id": "INT NOT NULL",
+                "meeting_id": "INT NOT NULL",
+                "recording_id": "INT",
+                "user_id": "INT NOT NULL",
+                "full_text": "TEXT NOT NULL",
+                "language": "VARCHAR(20) DEFAULT 'en'",
+                "duration": "FLOAT DEFAULT 0.0",
+                "segments": "JSON",
+                "source": "VARCHAR(50) DEFAULT 'live'",
+                "status": "VARCHAR(50) DEFAULT 'completed'",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            }
+
+            missing = [col for col in expected_columns if col not in t_cols]
+            if missing:
+                print(f"⚠️ Missing columns detected in 'transcripts': {missing}")
+                row_count = 0
+                try:
+                    res = db.session.execute(text("SELECT COUNT(*) FROM transcripts")).scalar()
+                    row_count = res or 0
+                except Exception:
+                    row_count = 0
+
+                if row_count == 0:
+                    print("Re-creating 'transcripts' table with full schema...")
+                    try:
+                        db.session.execute(text("DROP TABLE IF EXISTS transcripts"))
+                        db.session.commit()
+                        db.create_all()
+                        print("✅ Re-created 'transcripts' table cleanly!")
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f"Error re-creating table: {e}")
+                else:
+                    for col in missing:
+                        try:
+                            col_def = expected_columns[col]
+                            db.session.execute(text(f"ALTER TABLE transcripts ADD COLUMN {col} {col_def}"))
+                            db.session.commit()
+                            print(f"  + Added column: {col}")
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f"  x Failed to add {col}: {e}")
             print("✅ 'transcripts' table is verified and ready!")
 
 

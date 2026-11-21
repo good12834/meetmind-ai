@@ -25,6 +25,7 @@ class Transcript(db.Model):
     language = db.Column(db.String(20), default="en")
     duration = db.Column(db.Float, default=0.0)
     segments = db.Column(db.JSON, nullable=True)
+    source = db.Column(db.String(50), default="live")  # "live", "upload", "browser"
     status = db.Column(db.String(50), default="completed")  # "processing", "completed", "failed"
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -38,6 +39,7 @@ class Transcript(db.Model):
             "language": self.language or "en",
             "duration": round(self.duration, 2) if self.duration else 0.0,
             "segments": self.segments or [],
+            "source": self.source or "live",
             "status": self.status or "completed",
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
