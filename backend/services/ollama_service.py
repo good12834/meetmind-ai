@@ -310,7 +310,19 @@ def generate_summary(
     if not transcript_text or not transcript_text.strip():
         raise ValueError("Transcript text is empty — cannot generate a summary.")
 
-    selected_model = resolve_model(model)
+    # Resolve the model; fall back to a template summary when Ollama is down.
+    try:
+        selected_model = resolve_model(model)
+    except OllamaUnavailableError as exc:
+        logger.warning("Ollama unavailable (%s); using template fallback summary.", exc)
+        return generate_template_summary(
+            transcript_text,
+            model=model or Config.OLLAMA_MODEL,
+            meeting_title=meeting_title,
+            meeting_date=meeting_date,
+            template=template,
+        )
+
     prompt = _build_prompt(transcript_text, meeting_title, meeting_date, template)
 
     last_error = None
@@ -325,6 +337,15 @@ def generate_summary(
                 "The AI model returned an empty summary. "
                 "Try again or switch to a larger model."
             )
+        except OllamaUnavailableError as exc:
+            logger.warning("Ollama unavailable (%s); using template fallback summary.", exc)
+            return generate_template_summary(
+                transcript_text,
+                model=selected_model,
+                meeting_title=meeting_title,
+                meeting_date=meeting_date,
+                template=template,
+            )
         except OllamaResponseError as exc:
             last_error = exc
 
@@ -333,6 +354,107 @@ def generate_summary(
         prompt = prompt + "\n\nReturn ONLY the JSON object, with no other text."
 
     raise last_error or OllamaResponseError("The AI model could not summarise this transcript.")
+
+
+QUESTION_STARTS = (
+    "what", "why", "how", "when", "where", "who", "which",
+    "can", "could", "would", "should", "will", "is", "are",
+    "do", "does", "did",
+)
+DECISION_KEYWORDS = (
+    "decided", "agreed", "agree", "approval", "approved",
+    "we'll", "we will", "going to", "decision", "confirm",
+)
+PROBLEM_KEYWORDS = (
+    "problem", "blocker", "issue", "risk", "concern",
+    "blocked", "delay", "bug", "error", "fail", "failure",
+)
+ACTION_KEYWORDS = (
+    "action item", "todo", "task", "assignee", "owner",
+    "due", "deadline", "follow up", "need to", "has to",
+    "must", "responsible for",
+)
+
+
+def _split_sentences(text: str) -> list:
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def generate_template_summary(
+    transcript_text: str,
+    model: Optional[str] = None,
+    meeting_title: Optional[str] = None,
+    meeting_date: Optional[str] = None,
+    template: Optional[str] = None,
+) -> dict:
+    """
+    Rule-based fallback summary used when Ollama is unavailable.
+
+    Returns the same dict shape as ``generate_summary`` so callers need no
+    changes:
+        {
+            "summary_text": str,
+            "key_points": list[str],
+            "decisions": list[str],
+            "problems_identified": list[str],
+            "important_questions": list[str],
+            "action_items": list[{"task", "assignee", "due_date", "priority"}],
+            "model_used": str,
+        }
+    """
+    if not transcript_text or not transcript_text.strip():
+        raise ValueError("Transcript text is empty — cannot generate a summary.")
+
+    text = transcript_text.strip()
+    sentences = _split_sentences(text)
+
+    key_points = []
+    decisions = []
+    problems = []
+    questions = []
+    action_items = []
+
+    for s in sentences:
+        low = s.lower()
+        first_word = low.split()[0] if low.split() else ""
+
+        if s.endswith("?") or first_word in QUESTION_STARTS:
+            questions.append(s)
+            continue
+        if any(k in low for k in DECISION_KEYWORDS):
+            decisions.append(s)
+            continue
+        if any(k in low for k in PROBLEM_KEYWORDS):
+            problems.append(s)
+            continue
+        if any(k in low for k in ACTION_KEYWORDS):
+            priority = "high" if ("urgent" in low or "asap" in low) else "medium"
+            action_items.append({
+                "task": s,
+                "assignee": "Unassigned",
+                "due_date": "Not specified",
+                "priority": priority,
+            })
+            continue
+        if len(key_points) < 7:
+            key_points.append(s)
+
+    header = f"Meeting: {meeting_title or 'Untitled Meeting'}\nDate: {meeting_date or 'Not specified'}"
+    first = sentences[0] if sentences else "No transcript content available."
+    summary_text = f"{header}\n\n{first}"
+    if key_points:
+        summary_text += f"\n\nKey topics discussed: {'; '.join(key_points[:3])}."
+
+    return {
+        "summary_text": summary_text,
+        "key_points": key_points,
+        "decisions": decisions,
+        "problems_identified": problems,
+        "important_questions": questions,
+        "action_items": action_items,
+        "model_used": model or Config.OLLAMA_MODEL,
+    }
 
 
 # ---------------------------------------------------------------------------

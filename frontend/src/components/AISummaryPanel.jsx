@@ -398,7 +398,7 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              disabled={isBusy || localModels.length === 0}
+              disabled={isBusy}
               className="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-2 text-gray-300 focus:outline-none focus:border-purple-500 disabled:opacity-50"
               title="Ollama model"
             >
@@ -414,7 +414,7 @@ function AISummaryPanel({ meetingId, hasTranscript, onGoToTranscript }) {
 
             <button
               onClick={handleGenerate}
-              disabled={isBusy || !hasTranscript || !health.running || localModels.length === 0}
+              disabled={isBusy || !hasTranscript}
               className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-purple-600/20 transition"
             >
               {isBusy ? (
