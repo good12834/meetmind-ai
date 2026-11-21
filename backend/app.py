@@ -51,22 +51,33 @@ socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
 jwt.init_app(app)
 
 
+def _is_origin_allowed(origin):
+    if not origin:
+        return False
+    if origin in ALLOWED_ORIGINS:
+        return True
+    if origin.endswith(".vercel.app") or "localhost" in origin or "127.0.0.1" in origin:
+        return True
+    return False
+
+
 # Handle preflight OPTIONS requests before reaching blueprints
 @app.before_request
 def handle_options_preflight():
     if request.method == "OPTIONS":
         response = app.make_default_options_response()
         origin = request.headers.get("Origin")
-        allowed_origins = ALLOWED_ORIGINS
-        if origin in allowed_origins:
+        if _is_origin_allowed(origin):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Allow-Headers"] = (
-                "Content-Type, Authorization, X-Requested-With"
+                "Content-Type, Authorization, X-Requested-With, Access-Control-Request-Private-Network"
             )
             response.headers["Access-Control-Allow-Methods"] = (
                 "GET, POST, PUT, DELETE, OPTIONS, PATCH"
             )
+            # Chrome Private Network Access (PNA) loopback permission
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
         return response
 
 
@@ -74,16 +85,17 @@ def handle_options_preflight():
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get("Origin")
-    allowed_origins = ALLOWED_ORIGINS
-    if origin in allowed_origins:
+    if _is_origin_allowed(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = (
-            "Content-Type, Authorization, X-Requested-With"
+            "Content-Type, Authorization, X-Requested-With, Access-Control-Request-Private-Network"
         )
         response.headers["Access-Control-Allow-Methods"] = (
             "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         )
+        # Chrome Private Network Access (PNA) loopback permission
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
 
 # Global error handler for 500 errors
@@ -210,15 +222,17 @@ def health():
 def database_health():
     try:
         db.session.execute(db.text("SELECT 1"))
+        dialect = db.engine.dialect.name
         return jsonify({
             "success": True,
-            "message": "MySQL connected successfully",
+            "message": f"{dialect.upper()} connected successfully",
+            "dialect": dialect,
         })
-    except Exception:
+    except Exception as e:
         db.session.rollback()
         return jsonify({
             "success": False,
-            "message": "Database connection failed",
+            "message": f"Database connection failed: {e}",
         }), 500
 
 

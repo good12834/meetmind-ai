@@ -1,18 +1,60 @@
 import os
+import socket
 from datetime import timedelta
+from urllib.parse import urlparse
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _resolve_database_uri():
+    configured_uri = (
+        os.getenv("DATABASE_URL")
+        or "mysql+pymysql://root:root@localhost:3306/meetmind_ai"
+    )
+    # Fix Render postgres:// URI scheme for SQLAlchemy compatibility
+    if configured_uri.startswith("postgres://"):
+        configured_uri = configured_uri.replace("postgres://", "postgresql://", 1)
+
+    if configured_uri.startswith("sqlite") or configured_uri.startswith("postgresql"):
+        return configured_uri
+
+    if "mysql" in configured_uri:
+        host = "localhost"
+        port = 3306
+        try:
+            parsed = urlparse(
+                configured_uri.replace("mysql+pymysql://", "http://").replace("mysql://", "http://")
+            )
+            host = parsed.hostname or "localhost"
+            port = parsed.port or 3306
+            with socket.create_connection((host, port), timeout=0.8):
+                return configured_uri
+        except Exception:
+            sqlite_path = os.path.join(BASE_DIR, "meetmind_ai.db").replace("\\", "/")
+            print(f"[Database Notice] MySQL server at {host}:{port} is unreachable (Connection refused).")
+            print(f"[Database Notice] Gracefully falling back to SQLite database at: {sqlite_path}")
+            print(f"[Database Notice] To use MySQL instead, start your MySQL server or container.")
+            return f"sqlite:///{sqlite_path}"
+
+    return configured_uri
+
+
+_DB_URI = _resolve_database_uri()
+_IS_SQLITE = _DB_URI.startswith("sqlite")
 
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret-key-change-me"
-    SQLALCHEMY_DATABASE_URI = (
-        os.getenv("DATABASE_URL")
-        or "mysql+pymysql://root:root@localhost:3306/meetmind_ai"
-    )
+    SQLALCHEMY_DATABASE_URI = _DB_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 280,
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = (
+        {"pool_pre_ping": True}
+        if _IS_SQLITE
+        else {
+            "pool_pre_ping": True,
+            "pool_recycle": 280,
+        }
+    )
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or "dev-jwt-secret-change-me"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=2)
 

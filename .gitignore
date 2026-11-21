@@ -45,4 +45,5 @@ server.log
 app.log
 
 backend/uploads/
+*.db
 
